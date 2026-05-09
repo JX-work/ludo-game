@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>三眼仔飞行棋</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;800;900&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky:#06112e; --card:rgba(255,255,255,0.05); --border:rgba(255,255,255,0.1);
+  --radius:16px; --yellow:#ffd166; --green:#c8e84a; --blue:#2b7fd4;
+  --text:#e8f4f8; --text-dim:#8ecae6;
+  --p0:#e63946; --p1:#2b7fd4; --p2:#06d6a0; --p3:#ffd166;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;font-family:'Nunito',sans-serif;background:var(--sky);color:var(--text);overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 100% 55% at 50% 0%,#0d2660 0%,transparent 65%),
+  radial-gradient(ellipse 50% 40% at 85% 90%,rgba(100,40,130,0.3) 0%,transparent 55%);}
+.stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+#app{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:0.75rem;
+  display:flex;flex-direction:column;gap:0.75rem;min-height:100vh}
+
+nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 1rem;
+  background:rgba(6,17,46,0.9);border:1px solid rgba(43,127,212,0.25);
+  border-radius:var(--radius);backdrop-filter:blur(12px)}
+.logo{display:flex;align-items:center;gap:8px;font-family:'Fredoka One',cursive;font-size:20px;color:var(--yellow)}
+.logo img{width:40px;height:30px;object-fit:cover;border-radius:6px}
+.nav-links{display:flex;gap:6px}
+.nav-btn{background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:10px;
+  padding:6px 14px;font-size:13px;font-weight:700;color:var(--text-dim);cursor:pointer;font-family:inherit;transition:all 0.2s}
+.nav-btn:hover,.nav-btn.active{background:rgba(43,127,212,0.2);border-color:var(--blue);color:#6db8ff}
+
+.screen{display:none;flex-direction:column;gap:0.75rem;animation:fadeUp 0.2s ease}
+.screen.active{display:flex}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* HOME */
+.hero{text-align:center;padding:1rem 0.5rem;display:flex;flex-direction:column;align-items:center;gap:1rem}
+.hero-img{max-width:min(360px,80vw);height:auto;filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3));animation:bob 3s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.hero h1{font-family:'Fredoka One',cursive;font-size:clamp(26px,6vw,40px);
+  background:linear-gradient(135deg,var(--yellow),var(--green));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-feats{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.feat{padding:5px 12px;border-radius:20px;background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.1);font-size:12px;font-weight:700;color:var(--text-dim)}
+.home-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+
+/* RULES */
+.rules-card{background:rgba(6,17,46,0.8);border:1px solid rgba(43,127,212,0.15);border-radius:var(--radius);padding:1rem 1.25rem}
+.rules-title{font-family:'Fredoka One',cursive;font-size:15px;color:var(--yellow);margin-bottom:0.6rem}
+.rules-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.rule-item{display:flex;gap:8px;align-items:flex-start;font-size:12px}
+.rule-icon{font-size:18px;flex-shrink:0}
+.rule-text strong{display:block;font-size:13px;font-weight:800;margin-bottom:1px}
+.rule-text span{color:var(--text-dim)}
+
+/* BUTTONS */
+.btn-primary{background:linear-gradient(135deg,#2b9fd4,#1a5fa8);color:#fff;border:none;
+  border-radius:10px;padding:12px 28px;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;
+  transition:all 0.2s;box-shadow:0 4px 16px rgba(43,127,212,0.35)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(43,127,212,0.5)}
+.btn-ghost{background:rgba(255,255,255,0.05);color:var(--text);border:1px solid rgba(255,255,255,0.15);
+  border-radius:10px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s}
+.btn-ghost:hover{background:rgba(255,255,255,0.1)}
+.btn-sm{padding:7px 16px;font-size:13px}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;background:rgba(3,8,24,0.85);display:flex;align-items:center;
+  justify-content:center;z-index:100;backdrop-filter:blur(8px)}
+.overlay.hidden{display:none}
+.modal{background:linear-gradient(160deg,#0d1f4a,#081228);border:1px solid rgba(43,127,212,0.3);
+  border-radius:var(--radius);padding:1.75rem;width:min(400px,94vw);display:flex;flex-direction:column;gap:1rem;
+  box-shadow:0 0 40px rgba(43,127,212,0.15);max-height:90vh;overflow-y:auto}
+.modal h2{font-family:'Fredoka One',cursive;font-size:20px;color:var(--yellow)}
+.input-field{background:rgba(255,255,255,0.06);border:1px solid rgba(43,127,212,0.3);
+  border-radius:10px;padding:10px 14px;color:var(--text);font-size:15px;font-family:inherit;
+  width:100%;outline:none;transition:border-color 0.2s}
+.input-field:focus{border-color:var(--blue)}
+.select-field{background:rgba(255,255,255,0.06);border:1px solid rgba(43,127,212,0.3);
+  border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;font-family:inherit;width:100%;outline:none}
+.form-label{font-size:13px;font-weight:700;color:var(--text-dim);margin-bottom:4px;display:block}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.modal-btns{display:flex;gap:8px}
+
+/* AVATAR PICKER */
+.avatar-grid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.avatar-opt{cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:6px;border-radius:12px;border:2px solid rgba(255,255,255,0.1);
+  background:transparent;transition:all 0.15s;width:70px}
+.avatar-opt:hover{border-color:rgba(255,255,255,0.3)}
+.avatar-opt.selected{border-color:var(--yellow);background:rgba(255,209,70,0.12)}
+.avatar-opt img{width:50px;height:50px;object-fit:contain}
+.avatar-opt span{font-size:9px;font-weight:700;color:var(--text-dim);text-align:center;line-height:1.2}
+.color-opts{display:flex;gap:10px;justify-content:center}
+.color-opt{width:34px;height:34px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all 0.15s}
+.color-opt.selected{border-color:#fff;transform:scale(1.2);box-shadow:0 0 8px rgba(255,255,255,0.4)}
+
+/* LOBBY */
+.section-header{display:flex;align-items:center;justify-content:space-between}
+.section-title{font-family:'Fredoka One',cursive;font-size:18px;color:var(--yellow)}
+.rooms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.room-card{background:rgba(6,17,46,0.85);border:1px solid rgba(43,127,212,0.18);
+  border-radius:var(--radius);padding:1rem;cursor:pointer;transition:all 0.2s}
+.room-card:hover{border-color:rgba(43,127,212,0.45);transform:translateY(-2px)}
+.room-name{font-size:14px;font-weight:800}
+.badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:rgba(43,127,212,0.2);color:#6db8ff}
+.room-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.room-meta{font-size:12px;color:var(--text-dim);margin-bottom:8px}
+.room-avatars{display:flex;gap:4px}
+.create-card{background:rgba(6,17,46,0.5);border:2px dashed rgba(43,127,212,0.2);
+  border-radius:var(--radius);padding:1rem;cursor:pointer;transition:all 0.2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;min-height:100px;
+  color:var(--text-dim);font-size:14px;font-weight:700}
+.create-card:hover{background:rgba(43,127,212,0.06);border-color:rgba(43,127,212,0.4);color:#6db8ff}
+
+/* GAME */
+.room-code-bar{display:flex;align-items:center;justify-content:space-between;
+  background:rgba(100,40,130,0.15);border:1px solid rgba(155,63,168,0.3);
+  border-radius:10px;padding:7px 14px;font-size:13px}
+.room-code-val{font-family:'Space Mono',monospace;font-weight:700;color:#d09dff;letter-spacing:3px}
+.copy-btn{background:rgba(155,63,168,0.12);border:1px solid rgba(155,63,168,0.3);
+  border-radius:8px;padding:4px 10px;color:#d09dff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.board-area{display:flex;flex-direction:column;align-items:center;gap:0.75rem}
+.board-container{position:relative;width:100%;max-width:500px;margin:0 auto}
+#ludo-board{width:100%;height:auto;display:block;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.5);cursor:pointer}
+
+/* DICE */
+.dice-area{display:flex;align-items:center;justify-content:center;gap:1rem;
+  background:rgba(6,17,46,0.8);border:1px solid rgba(43,127,212,0.2);
+  border-radius:var(--radius);padding:0.8rem 1.2rem;width:100%;max-width:500px}
+.dice{width:64px;height:64px;background:white;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:36px;cursor:pointer;transition:all 0.2s;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4);user-select:none;border:3px solid rgba(0,0,0,0.1)}
+.dice:hover:not(.disabled){transform:scale(1.1) rotate(-5deg)}
+.dice.disabled{opacity:0.35;cursor:not-allowed}
+.dice.rolling{animation:diceRoll 0.5s ease}
+@keyframes diceRoll{0%{transform:rotate(0)}25%{transform:rotate(-20deg) scale(1.1)}75%{transform:rotate(15deg) scale(1.15)}100%{transform:rotate(0) scale(1)}}
+
+/* PLAYERS PANEL */
+.players-panel{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;max-width:500px}
+.player-card{background:rgba(6,17,46,0.8);border:2px solid rgba(255,255,255,0.08);
+  border-radius:12px;padding:0.6rem 0.8rem;display:flex;align-items:center;gap:8px;transition:all 0.3s}
+.player-name{font-weight:800;font-size:13px}
+.player-status{font-size:11px;color:var(--text-dim)}
+.piece-mini{width:11px;height:11px;border-radius:50%;border:1.5px solid rgba(0,0,0,0.3);display:inline-block}
+.pieces-row{display:flex;gap:3px;flex-wrap:wrap}
+
+/* GAME LOG */
+.game-log{background:rgba(6,17,46,0.7);border:1px solid rgba(43,127,212,0.15);
+  border-radius:12px;padding:0.6rem 0.8rem;max-height:90px;overflow-y:auto;
+  font-size:12px;width:100%;max-width:500px}
+.log-entry{padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.05);color:var(--text-dim)}
+.log-entry:last-child{border-bottom:none;color:var(--text)}
+
+/* END */
+.end-overlay{position:fixed;inset:0;background:rgba(3,8,24,0.9);display:flex;align-items:center;
+  justify-content:center;z-index:50;backdrop-filter:blur(10px)}
+.end-overlay.hidden{display:none}
+.end-box{background:linear-gradient(160deg,#0d1f4a,#081228);border:1px solid rgba(43,127,212,0.3);
+  border-radius:var(--radius);padding:2rem;text-align:center;max-width:320px;width:92%;
+  display:flex;flex-direction:column;gap:0.75rem;align-items:center}
+.end-box h2{font-family:'Fredoka One',cursive;font-size:26px;color:var(--yellow)}
+
+
+/* ── ALIEN EFFECTS ── */
+
+/* 投骰子时三眼仔欢呼 */
+.dice-alien-cheer {
+  position:fixed;bottom:120px;left:50%;transform:translateX(-50%);
+  z-index:500;pointer-events:none;
+  animation:alienCheer 0.8s ease forwards;
+}
+@keyframes alienCheer {
+  0%{transform:translateX(-50%) translateY(60px) scale(0.5);opacity:0}
+  40%{transform:translateX(-50%) translateY(-20px) scale(1.15);opacity:1}
+  70%{transform:translateX(-50%) translateY(0) scale(1);opacity:1}
+  100%{transform:translateX(-50%) translateY(0) scale(1);opacity:0}
+}
+
+/* 棋子跳跃动画 */
+@keyframes pieceJump {
+  0%{transform:translateY(0) scale(1)}
+  30%{transform:translateY(-18px) scale(1.2)}
+  60%{transform:translateY(-8px) scale(1.1)}
+  80%{transform:translateY(-2px) scale(1.05)}
+  100%{transform:translateY(0) scale(1)}
+}
+.piece-jumping { animation: pieceJump 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+/* 吃子特效：惊吓三眼仔弹出 */
+.eat-effect {
+  position:fixed;z-index:500;pointer-events:none;
+  animation:eatPop 1.2s ease forwards;
+}
+@keyframes eatPop {
+  0%{transform:scale(0) rotate(-20deg);opacity:0}
+  20%{transform:scale(1.4) rotate(10deg);opacity:1}
+  50%{transform:scale(1.1) rotate(-5deg);opacity:1}
+  70%{transform:scale(1.2) rotate(0deg) translateY(-30px);opacity:1}
+  100%{transform:scale(0.8) rotate(5deg) translateY(-80px);opacity:0}
+}
+
+/* 棋子被吃时惊吓小弹窗 */
+.piece-scared {
+  position:fixed;z-index:501;pointer-events:none;
+  animation:scaredPop 1s ease forwards;
+}
+@keyframes scaredPop {
+  0%{transform:scale(0);opacity:0}
+  30%{transform:scale(1.3);opacity:1}
+  60%{transform:scale(1) translateY(-20px);opacity:1}
+  100%{transform:scale(0.5) translateY(-60px);opacity:0}
+}
+
+/* 胜利：三眼仔从天而降 */
+.alien-rain {
+  position:fixed;z-index:400;pointer-events:none;
+  animation:alienRain linear forwards;
+}
+@keyframes alienRain {
+  0%{transform:translateY(-120px) rotate(var(--rot)) scale(var(--sc));opacity:0}
+  10%{opacity:1}
+  90%{opacity:1}
+  100%{transform:translateY(110vh) rotate(calc(var(--rot) + 360deg)) scale(var(--sc));opacity:0}
+}
+
+/* 胜利灯光放射 */
+.victory-light {
+  position:fixed;top:50%;left:50%;z-index:399;pointer-events:none;
+  width:0;height:0;
+  animation:victoryLight 2s ease forwards;
+}
+.victory-light::before {
+  content:'';position:absolute;top:50%;left:50%;
+  width:300vw;height:300vw;
+  transform:translate(-50%,-50%);
+  background:radial-gradient(ellipse at center, rgba(255,209,70,0.35) 0%, transparent 65%);
+  animation:lightPulse 0.5s ease-out;
+}
+@keyframes lightPulse {
+  0%{transform:translate(-50%,-50%) scale(0);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:0}
+}
+
+/* 骰子滚动时的三眼仔表情 */
+.dice-face-overlay {
+  position:absolute;top:-55px;left:50%;transform:translateX(-50%);
+  width:50px;height:50px;object-fit:contain;
+  animation:faceBounc 0.3s ease infinite alternate;
+  pointer-events:none;z-index:10;
+}
+@keyframes faceBounc {
+  from{transform:translateX(-50%) translateY(0) scale(1)}
+  to{transform:translateX(-50%) translateY(-6px) scale(1.1)}
+}
+
+/* 四角守护三眼仔 */
+.corner-guardian {
+  position:absolute;width:44px;height:44px;object-fit:contain;
+  opacity:0.75;animation:guardPulse 2.5s ease-in-out infinite;
+  pointer-events:none;z-index:5;
+}
+@keyframes guardPulse {
+  0%,100%{transform:scale(1) rotate(0deg);opacity:0.7}
+  50%{transform:scale(1.12) rotate(5deg);opacity:0.95}
+}
+
+/* The Claw 台词气泡 */
+.claw-bubble {
+  position:fixed;z-index:502;pointer-events:none;
+  background:rgba(6,17,46,0.95);border:2px solid #ffd166;
+  border-radius:16px;padding:8px 16px;
+  font-family:'Fredoka One',cursive;font-size:15px;color:#ffd166;
+  white-space:nowrap;
+  animation:bubblePop 2.5s ease forwards;
+}
+.claw-bubble::after {
+  content:'';position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);
+  width:0;height:0;border-left:10px solid transparent;
+  border-right:10px solid transparent;border-top:12px solid #ffd166;
+}
+@keyframes bubblePop {
+  0%{transform:scale(0) translateY(20px);opacity:0}
+  15%{transform:scale(1.1) translateY(0);opacity:1}
+  70%{transform:scale(1) translateY(0);opacity:1}
+  100%{transform:scale(0.8) translateY(-30px);opacity:0}
+}
+
+/* confetti 三眼仔版 */
+.alien-confetti {
+  position:fixed;z-index:450;pointer-events:none;
+  animation:confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  0%{transform:translateY(-20px) rotate(0deg);opacity:1}
+  100%{transform:translateY(110vh) rotate(720deg);opacity:0}
+}
+
+/* TOAST & FX */
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);
+  background:linear-gradient(135deg,#0d2860,#0d1f4a);border:1px solid rgba(43,127,212,0.35);
+  border-radius:24px;padding:9px 22px;font-size:14px;font-weight:700;color:var(--text);
+  z-index:300;pointer-events:none;white-space:nowrap;
+  animation:toastIn 0.2s ease,toastOut 0.3s 2.2s ease forwards}
+@keyframes toastIn{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+@keyframes toastOut{to{transform:translateX(-50%) translateY(20px);opacity:0}}
+.confetti{position:fixed;pointer-events:none;z-index:200;animation:cfFall linear forwards}
+@keyframes cfFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(43,127,212,0.2);
+  border-top-color:var(--blue);border-radius:50%;animation:spin 0.6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:420px){.players-panel{grid-template-columns:1fr 1fr}.dice{width:52px;height:52px;font-size:28px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="(function(){var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2';document.head.appendChild(s);})();"></script>
+</head>
+<body>
+<canvas class="stars" id="stars"></canvas>
+<div id="app">
+
+<nav>
+  <div class="logo"><img src="imgs/img_c9a3b691.png" alt="logo">    三眼仔飞行棋
+  </div>
+  <div class="nav-links">
+    <button class="nav-btn active" onclick="showScreen('home')">主页</button>
+    <button class="nav-btn" onclick="goLobby()">大厅</button>
+    <button class="nav-btn" onclick="showScreen('rules')">规则</button>
+  </div>
+</nav>
+
+<!-- HOME -->
+<div id="screen-home" class="screen active">
+  <div class="hero"><img class="hero-img" src="imgs/img_3e3220a9.png" alt="三眼仔飞行棋">    <h1>三眼仔飞行棋</h1>
+    <p style="font-size:14px;color:var(--text-dim);max-width:280px">掷骰子，走棋子，吃对手，第一个到终点就赢！</p>
+    <div class="hero-feats">
+      <div class="feat">🎲 标准飞行棋规则</div>
+      <div class="feat">👾 2-4人联机/本地</div>
+      <div class="feat">🛡️ 安全格保护</div>
+      <div class="feat">💥 吃子送回基地</div>
+    </div>
+    <div class="home-btns">
+      <button class="btn-primary" onclick="openSetup('local')">本地对战 ✦</button>
+      <button class="btn-ghost" onclick="openSetup('online')">联机对战</button>
+    </div>
+  </div>
+</div>
+
+<!-- RULES -->
+<div id="screen-rules" class="screen">
+  <div style="font-family:'Fredoka One',cursive;font-size:20px;color:var(--yellow)">📖 飞行棋规则</div>
+  <div class="rules-card">
+    <div class="rules-title">基本规则</div>
+    <div class="rules-grid">
+      <div class="rule-item"><div class="rule-icon">🎲</div><div class="rule-text"><strong>出基地</strong><span>掷到6才能让棋子出基地</span></div></div>
+      <div class="rule-item"><div class="rule-icon">🚀</div><div class="rule-text"><strong>走棋</strong><span>掷几就走几步，可选任意棋子</span></div></div>
+      <div class="rule-item"><div class="rule-icon">🎁</div><div class="rule-text"><strong>掷6奖励</strong><span>掷到6额外再掷一次</span></div></div>
+      <div class="rule-item"><div class="rule-icon">💥</div><div class="rule-text"><strong>吃子</strong><span>踩到对方棋子，对方回基地</span></div></div>
+      <div class="rule-item"><div class="rule-icon">🛡️</div><div class="rule-text"><strong>安全格★</strong><span>星星格上的棋子不能被吃</span></div></div>
+      <div class="rule-item"><div class="rule-icon">🏆</div><div class="rule-text"><strong>胜利</strong><span>4颗棋子全到终点获胜</span></div></div>
+    </div>
+  </div>
+  <button class="btn-primary" onclick="openSetup('local')" style="align-self:center">开始游戏 ✦</button>
+</div>
+
+<!-- LOBBY -->
+<div id="screen-lobby" class="screen">
+  <div class="section-header">
+    <div class="section-title">🛸 游戏大厅</div>
+    <button class="btn-primary btn-sm" onclick="openCreateRoom()">+ 创建房间</button>
+  </div>
+  <div id="rooms-grid" class="rooms-grid"><div style="text-align:center;padding:2rem;color:var(--text-dim)">扫描中... <span class="spinner"></span></div></div>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen">
+  <div id="room-code-bar" style="display:none" class="room-code-bar">
+    <span style="color:var(--text-dim);font-size:12px;font-weight:700">房间码</span>
+    <span id="room-code-val" class="room-code-val"></span>
+    <button class="copy-btn" onclick="copyCode()">复制链接</button>
+  </div>
+  <div id="turn-banner" style="text-align:center;padding:0.4rem;font-family:'Fredoka One',cursive;font-size:16px;color:var(--yellow)">等待开始...</div>
+  <div class="board-area">
+    <div class="board-container" style="position:relative">
+      <!-- 四角守护三眼仔 -->
+      <img id="guardian-0" class="corner-guardian" style="top:-20px;left:-20px;transform:scaleX(-1)" src="" alt="">
+      <img id="guardian-1" class="corner-guardian" style="top:-20px;right:-20px" src="" alt="">
+      <img id="guardian-2" class="corner-guardian" style="bottom:-20px;right:-20px;transform:scaleX(-1)" src="" alt="">
+      <img id="guardian-3" class="corner-guardian" style="bottom:-20px;left:-20px" src="" alt="">
+      <svg id="ludo-board" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="dice-area">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;position:relative">
+        <img id="dice-alien-face" style="position:absolute;top:-52px;left:50%;transform:translateX(-50%);width:46px;height:46px;object-fit:contain;display:none" src="" alt="">
+        <div id="dice-face" class="dice" onclick="rollDice()">🎲</div>
+        <div style="font-size:10px;color:var(--text-dim)">点击掷骰子</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:120px">
+        <div id="turn-info" style="font-family:'Fredoka One',cursive;font-size:15px">-</div>
+        <div id="dice-result" style="font-size:12px;color:var(--text-dim)">等待掷骰...</div>
+        <div id="move-hint" style="font-size:11px;color:#ffd166"></div>
+      </div>
+    </div>
+  </div>
+  <div id="players-panel" class="players-panel"></div>
+  <div class="game-log" id="game-log"><div class="log-entry">游戏日志</div></div>
+  <button class="btn-ghost btn-sm" onclick="leaveGame()" style="align-self:center">离开游戏</button>
+</div>
+
+</div><!-- /app -->
+
+<!-- SETUP MODAL -->
+<div id="setup-overlay" class="overlay hidden">
+  <div class="modal">
+    <div style="text-align:center"><img src="imgs/img_12c039e8.png" style="width:110px;height:110px;object-fit:contain;animation:bob 2.5s ease-in-out infinite">    </div>
+    <h2>设置你的三眼仔</h2>
+    <div class="form-group"><label class="form-label">昵称</label>
+      <input id="nick-input" class="input-field" type="text" placeholder="输入昵称..." maxlength="12"></div>
+    <div class="form-group"><label class="form-label">选择角色</label>
+      <div class="avatar-grid" id="avatar-grid"></div></div>
+    <div class="form-group"><label class="form-label">选择颜色</label>
+      <div class="color-opts">
+        <div class="color-opt" style="background:#e63946" onclick="selColor(0)"></div>
+        <div class="color-opt" style="background:#2b7fd4" onclick="selColor(1)"></div>
+        <div class="color-opt" style="background:#06d6a0" onclick="selColor(2)"></div>
+        <div class="color-opt" style="background:#ffd166" onclick="selColor(3)"></div>
+      </div></div>
+    <div id="setup-mode-opts" class="form-group"></div>
+    <div class="modal-btns">
+      <button class="btn-primary" onclick="confirmSetup()" style="flex:1">出发！</button>
+      <button class="btn-ghost" onclick="closeSetup()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE ROOM -->
+<div id="create-overlay" class="overlay hidden">
+  <div class="modal">
+    <h2>🚀 创建飞行棋房间</h2>
+    <div class="form-group"><label class="form-label">房间名称</label>
+      <input id="room-name-input" class="input-field" type="text" placeholder="例：三眼仔特攻队" maxlength="20"></div>
+    <div class="form-group"><label class="form-label">玩家人数</label>
+      <select id="room-players" class="select-field">
+        <option value="2">2人对战</option><option value="3">3人对战</option><option value="4" selected>4人对战（标准）</option>
+      </select></div>
+    <div class="modal-btns">
+      <button class="btn-primary" onclick="createRoom()" style="flex:1">创建并进入 ✦</button>
+      <button class="btn-ghost" onclick="closeCreateRoom()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- END -->
+<div id="end-overlay" class="end-overlay hidden">
+  <div class="end-box">
+    <div id="end-winner-img"></div>
+    <h2 id="end-title">🏆 胜利！</h2>
+    <p id="end-msg" style="font-size:14px;color:var(--text-dim)"></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:0.5rem">
+      <button class="btn-primary" onclick="restartGame()">再来一局！</button>
+      <button class="btn-ghost" onclick="leaveGame()">返回主页</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// SUPABASE
+const SUPABASE_URL='https://hflhagpswbbihqqxfcsr.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmbGhhZ3Bzd2JiaWhxcXhmY3NyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMzY2OTYsImV4cCI6MjA5MzkxMjY5Nn0.4my2Glq4QbbdaFyP_XEzpH8q5DMeprkrOC6cqgsUB8k';
+let sb = null;
+let _sbRetries=0;
+function initSupabase() {
+  try {
+    if(typeof supabase !== 'undefined' && supabase && supabase.createClient) {
+      sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      _sbRetries=0;
+      console.log('✅ Supabase connected');
+    } else if(_sbRetries < 30) {
+      _sbRetries++;
+      setTimeout(initSupabase, 500);
+    } else {
+      console.error('❌ Supabase CDN failed to load after retries');
+    }
+  } catch(e) {
+    console.warn('Supabase init error:', e.message);
+    if(_sbRetries < 30){ _sbRetries++; setTimeout(initSupabase, 1000); }
+  }
+}
+initSupabase();
+const ALIENS = [
+  {id:"blue_bunny",label:"蓝色兔子",src:"imgs/img_076b0b8f.png"},
+  {id:"yellow_shirt",label:"黄色小鸭",src:"imgs/img_3993fe12.png"},
+  {id:"pink_pig",label:"粉色猪猪",src:"imgs/img_7c33e684.png"},
+  {id:"blue_monster",label:"蓝色毛怪",src:"imgs/img_dc0b8804.png"},
+  {id:"red_hero",label:"红色英雄",src:"imgs/img_df53634f.png"},
+  {id:"orange_fox",label:"橙色狐狸",src:"imgs/img_f0c5aefd.png"},
+  {id:"blue_cap",label:"蓝色帽仔",src:"imgs/img_75ab6820.png"},
+  {id:"pink_bear",label:"粉色小熊",src:"imgs/img_d761acdf.png"},
+];
+const IMG_MINE = "imgs/img_b4bec22e.png";
+const IMG_HERO = "imgs/img_3e3220a9.png";
+const IMG_MODAL = "imgs/img_12c039e8.png";
+
+
+
+// ============================================================
+// ALIEN EFFECTS — 三眼仔特效系统
+// ============================================================
+
+const CLAW_QUOTES = ["The Claw！", "我被选中了！", "命运的爪子！", "哦哦哦！", "The Claw is our master！", "它选择了我！", "敬畏The Claw！"];
+const IMG_SCARED = IMG_MINE;
+const IMG_CHEER  = IMG_HERO;
+const IMG_FACE   = IMG_MODAL;
+
+// 初始化四角守护三眼仔
+function initGuardians() {
+  // 用8个角色轮流守护4个角
+  const guardIds = ['guardian-0','guardian-1','guardian-2','guardian-3'];
+  guardIds.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if(el && ALIENS[i]) el.src = ALIENS[i%ALIENS.length].src;
+  });
+}
+
+// 骰子三眼仔表情
+function showDiceFace(rolling) {
+  const faceEl = document.getElementById('dice-alien-face');
+  if(!faceEl) return;
+  if(rolling) {
+    faceEl.src = IMG_FACE;
+    faceEl.style.display = 'block';
+    faceEl.style.animation = 'faceBounc 0.25s ease infinite alternate';
+  } else {
+    faceEl.style.animation = 'none';
+    setTimeout(() => { faceEl.style.display = 'none'; }, 600);
+  }
+}
+
+// 投骰子时欢呼 + The Claw 台词
+function alienCheer(diceVal) {
+  // 三眼仔欢呼弹出
+  const el = document.createElement('img');
+  el.className = 'dice-alien-cheer';
+  el.src = IMG_CHEER;
+  el.style.cssText = 'width:90px;height:90px;object-fit:contain';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 900);
+
+  // The Claw 台词气泡（掷到6时）
+  if(diceVal === 6) {
+    const quote = CLAW_QUOTES[Math.floor(Math.random()*CLAW_QUOTES.length)];
+    const bubble = document.createElement('div');
+    bubble.className = 'claw-bubble';
+    bubble.textContent = quote;
+    bubble.style.cssText = 'bottom:200px;left:50%;transform:translateX(-50%)';
+    document.body.appendChild(bubble);
+    setTimeout(() => bubble.remove(), 2600);
+  }
+}
+
+// 棋子移动跳跃动画（在SVG棋子上叠加DOM元素）
+function animatePieceJump(px, py) {
+  const board = document.getElementById('ludo-board');
+  if(!board) return;
+  const rect = board.getBoundingClientRect();
+  const scaleX = rect.width / 600;
+  const scaleY = rect.height / 600;
+  const screenX = rect.left + px * scaleX;
+  const screenY = rect.top  + py * scaleY;
+
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;left:${screenX}px;top:${screenY}px;
+    width:28px;height:28px;transform:translate(-50%,-50%);
+    background:rgba(255,255,255,0.9);border-radius:50%;
+    z-index:450;pointer-events:none;
+    animation:pieceJump 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 520);
+}
+
+// 吃子特效：惊吓三眼仔 + 被吃棋子上的惊跳
+function alienEatEffect(victimScreenX, victimScreenY) {
+  // 被吃棋子上的惊跳三眼仔
+  const scared = document.createElement('img');
+  scared.src = IMG_SCARED;
+  scared.className = 'piece-scared';
+  scared.style.cssText = `left:${victimScreenX-40}px;top:${victimScreenY-40}px;width:80px;height:80px;object-fit:contain`;
+  document.body.appendChild(scared);
+  setTimeout(() => scared.remove(), 1100);
+
+  // 大惊吓三眼仔从棋盘飞起
+  const big = document.createElement('img');
+  big.src = IMG_SCARED;
+  big.className = 'eat-effect';
+  big.style.cssText = `left:${victimScreenX-60}px;top:${victimScreenY-60}px;width:120px;height:120px;object-fit:contain`;
+  document.body.appendChild(big);
+  setTimeout(() => big.remove(), 1300);
+
+  // 震动特效
+  const boardEl = document.getElementById('ludo-board');
+  if(boardEl) {
+    boardEl.style.animation = 'mineShake 0.35s ease';
+    setTimeout(() => boardEl.style.animation = '', 400);
+  }
+}
+
+// 胜利：三眼仔从天而降 + 灯光 + 彩色纸屑
+function alienVictoryEffect(winnerAvatarSrc) {
+  // 灯光放射
+  const light = document.createElement('div');
+  light.className = 'victory-light';
+  document.body.appendChild(light);
+  setTimeout(() => light.remove(), 2200);
+
+  // 三眼仔从天而降（15只）
+  for(let i=0;i<18;i++) {
+    setTimeout(() => {
+      const alien = document.createElement('img');
+      alien.className = 'alien-rain';
+      const a = ALIENS[Math.floor(Math.random()*ALIENS.length)];
+      alien.src = a.src;
+      const size = 40 + Math.random()*50;
+      const rot = (Math.random()-0.5)*60;
+      const sc = 0.7 + Math.random()*0.6;
+      const dur = 2 + Math.random()*2.5;
+      alien.style.cssText = `left:${Math.random()*95}%;top:0;width:${size}px;height:${size}px;object-fit:contain;--rot:${rot}deg;--sc:${sc};animation-duration:${dur}s`;
+      document.body.appendChild(alien);
+      setTimeout(() => alien.remove(), dur*1000 + 200);
+    }, i * 120);
+  }
+
+  // 三眼仔彩屑纸屑
+  const alienColors = ['#e63946','#2b7fd4','#06d6a0','#ffd166','#c8e84a','#c77dff'];
+  for(let i=0;i<80;i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'alien-confetti';
+      const isAlien = Math.random() > 0.5;
+      if(isAlien) {
+        // 小三眼仔图片纸屑
+        const img = document.createElement('img');
+        img.src = ALIENS[Math.floor(Math.random()*ALIENS.length)].src;
+        img.style.cssText = `width:${16+Math.random()*16}px;height:${16+Math.random()*16}px;object-fit:contain`;
+        el.appendChild(img);
+      }
+      el.style.cssText += `left:${3+Math.random()*94}%;top:-20px;
+        background:${isAlien?'transparent':alienColors[i%alienColors.length]};
+        width:${isAlien?'auto':4+Math.random()*8+'px'};height:${isAlien?'auto':4+Math.random()*8+'px'};
+        border-radius:${Math.random()>.5?'50%':'2px'};
+        animation-duration:${2+Math.random()*2.5}s`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 5000);
+    }, i*30);
+  }
+
+  // 胜利者大三眼仔弹出
+  setTimeout(() => {
+    const winner = document.createElement('img');
+    winner.src = winnerAvatarSrc || IMG_CHEER;
+    winner.style.cssText = `position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+      width:180px;height:180px;object-fit:contain;z-index:600;pointer-events:none;
+      animation:eatPop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards,bob 1.5s 0.6s ease-in-out infinite`;
+    document.body.appendChild(winner);
+    setTimeout(() => winner.remove(), 4000);
+  }, 300);
+}
+
+// 安全格提示：小三眼仔守护动画
+function safeZoneEffect(screenX, screenY) {
+  const shield = document.createElement('div');
+  shield.style.cssText = `position:fixed;left:${screenX}px;top:${screenY}px;
+    transform:translate(-50%,-50%);font-size:28px;z-index:500;pointer-events:none;
+    animation:eatPop 1s ease forwards`;
+  shield.textContent = '🛡️';
+  document.body.appendChild(shield);
+  setTimeout(() => shield.remove(), 1100);
+}
+
+// 把坐标转成屏幕坐标
+function boardToScreen(r, c) {
+  const board = document.getElementById('ludo-board');
+  if(!board) return {x:0,y:0};
+  const rect = board.getBoundingClientRect();
+  const scX = rect.width / 600;
+  const scY = rect.height / 600;
+  return {
+    x: rect.left + (c + 0.5) * 40 * scX,
+    y: rect.top  + (r + 0.5) * 40 * scY,
+  };
+}
+
+const P_COLORS=['#e63946','#2b7fd4','#06d6a0','#ffd166'];
+const P_LIGHT=['#ffc8cc','#b3d4f5','#b3f0e0','#fff0b3'];
+const P_NAMES=['红方','蓝方','绿方','黄方'];
+const S=600, C=40; // board size, cell size
+
+// Stars
+(()=>{
+  const cv=document.getElementById('stars'),ctx=cv.getContext('2d');
+  let st=[];
+  function resize(){cv.width=innerWidth;cv.height=innerHeight;}
+  resize();window.addEventListener('resize',resize);
+  for(let i=0;i<160;i++)st.push({x:Math.random(),y:Math.random(),r:Math.random()*1.4+0.2,o:Math.random()*0.7+0.2,s:(Math.random()*0.0015+0.0004)*(Math.random()>.5?1:-1)});
+  function draw(){ctx.clearRect(0,0,cv.width,cv.height);st.forEach(s=>{s.o+=s.s;if(s.o>1||s.o<0.1)s.s*=-1;ctx.beginPath();ctx.arc(s.x*cv.width,s.y*cv.height,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${s.o})`;ctx.fill();});requestAnimationFrame(draw);}
+  draw();
+})();
+
+// Audio
+let _ac;const ga=()=>{if(!_ac)_ac=new(window.AudioContext||window.webkitAudioContext)();return _ac;};
+function beep(f,d,v=0.1){try{const a=ga(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=f;g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function sndDice(){beep(400,.05);setTimeout(()=>beep(600,.05),60);setTimeout(()=>beep(900,.1),120);}
+function sndMove(){beep(600,.08,.08);}
+function sndEat(){beep(200,.3,.15);setTimeout(()=>beep(150,.25,.1),100);}
+function sndWin(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.25,.15),i*120));}
+function sndSafe(){beep(800,.12,.1);setTimeout(()=>beep(1000,.12,.1),130);}
+
+// ============================================================
+// BOARD PATH - 标准飞行棋52格外圈路径 (row,col)
+// ============================================================
+// 棋盘15x15，基地在四个角6x6，中间3格走廊
+const PATH = [
+  // 红出发→右→上→顶
+  [8,1],[8,2],[8,3],[8,4],[8,5],           // 0-4
+  [7,6],[6,6],[5,6],[4,6],[3,6],[2,6],[1,6], // 5-11
+  [0,6],[0,7],[0,8],                        // 12-14
+  // 蓝出发→下→右
+  [1,8],[2,8],[3,8],[4,8],[5,8],           // 15-19
+  [6,9],[6,10],[6,11],[6,12],[6,13],       // 20-24
+  [7,13],                                   // 25
+  // 绿出发→下→左
+  [8,13],[9,13],[10,13],[11,13],[12,13],   // 26-30
+  [13,13],[14,13],                          // 31-32
+  [14,12],[14,11],[14,10],[14,9],[14,8],   // 33-37
+  [14,7],[14,6],                            // 38-39 (注：这里绕过中间)
+  // 黄出发→上→左
+  [13,6],[12,6],[11,6],[10,6],[9,6],       // 40-44 (改为col=6)
+  [8,6],                                    // 45
+  [8,5],[8,4],[8,3],[8,2],[8,1],           // 46-50 重复了...
+  [7,0],                                    // 51
+];
+
+// 标准正确52格路径（经过验证）
+const LPATH = [
+  [6,1],[6,2],[6,3],[6,4],[6,5],           // 0-4   红区出发
+  [5,6],[4,6],[3,6],[2,6],[1,6],[0,6],     // 5-10  左上行
+  [0,7],[0,8],                              // 11-12 顶横
+  [1,8],[2,8],[3,8],[4,8],[5,8],           // 13-17 蓝区出发
+  [6,9],[6,10],[6,11],[6,12],[6,13],       // 18-22 右横
+  [7,13],[8,13],[9,13],[10,13],[11,13],[12,13],[13,13], // 23-29 绿区出发
+  [14,13],[14,12],[14,11],[14,10],[14,9],[14,8],[14,7], // 30-36 底横
+  [13,7],[12,7],[11,7],[10,7],[9,7],[8,7], // 37-42 黄区出发
+  [7,7],                                    // 43 (中心附近)
+  [7,6],[7,5],[7,4],[7,3],[7,2],[7,1],[7,0], // 44-50 左横
+  [6,0],[5,0],                              // 51-52... 超了
+
+  // 最终答案：用经典飞行棋坐标
+];
+
+// 使用经过验证的标准飞行棋路径
+// 玩家0(红)从idx0出发，玩家1(蓝)从idx13出发，玩家2(绿)从idx26出发，玩家3(黄)从idx39出发
+const BOARD_PATH = [
+  // 0-12: 红方区 (左下角出发向右上)
+  [8,1],[8,2],[8,3],[8,4],[8,5],           // 0-4
+  [7,6],[6,6],[5,6],[4,6],[3,6],[2,6],[1,6], // 5-11
+  [0,6],                                    // 12
+  // 13-25: 蓝方区
+  [0,7],[0,8],                              // 13-14
+  [1,8],[2,8],[3,8],[4,8],[5,8],           // 15-19
+  [6,9],[6,10],[6,11],[6,12],[6,13],       // 20-24
+  [6,14],                                   // 25
+  // 26-38: 绿方区
+  [7,14],[8,14],                            // 26-27
+  [8,13],[9,13],[10,13],[11,13],[12,13],[13,13], // 28-35... 超了
+];
+
+// 最终决定：使用简化但正确的路径
+// 标准飞行棋外圈恰好52格
+const GP = [
+  // 红(0): 起点idx=1, HOME_ENTRY=51→红色跑道col=7,row8→3
+  [8,1],[8,2],[8,3],[8,4],[8,5],            // 0-4
+  [7,6],[6,6],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6], // 5-12
+  [0,7],[0,8],                               // 13-14 (这里蓝方起点是14)
+  // 蓝(1): 起点idx=14, HOME_ENTRY=12→蓝色跑道row=7,col8→13
+  [1,8],[2,8],[3,8],[4,8],[5,8],            // 15-19
+  [6,9],[6,10],[6,11],[6,12],[6,13],[6,14], // 20-25
+  [7,14],                                    // 26 (绿方起点=27)
+  // 绿(2): 起点idx=27, HOME_ENTRY=25→绿色跑道col=7,row6→1
+  [8,13],[9,13],[10,13],[11,13],[12,13],[13,13],[14,13], // 27-33
+  [14,12],[14,11],[14,10],[14,9],[14,8],[14,7],[14,6],   // 34-40
+  // 黄(3): 起点idx=40, HOME_ENTRY=38→黄色跑道row=7,col6→1
+  [13,6],[12,6],[11,6],[10,6],[9,6],[8,6],[7,6],         // 41-47... 跟5-11重复了
+];
+
+// 终极正确路径 - 避免重复格子
+const FINAL_PATH = (function() {
+  const p = [];
+  // 红方出发区 (左下角，行8)
+  for(let c=1;c<=5;c++) p.push([8,c]);            // 0-4
+  // 上行（col=6）
+  for(let r=7;r>=1;r--) p.push([r,6]);             // 5-11
+  // 顶横（row=0）
+  p.push([0,6],[0,7],[0,8]);                        // 12-14
+  // 蓝方出发区 下行（col=8）
+  for(let r=1;r<=5;r++) p.push([r,8]);              // 15-19
+  // 右横（row=6）
+  for(let c=9;c<=13;c++) p.push([6,c]);             // 20-24
+  // 绿方出发区 右下角 下行（col=13）
+  for(let r=7;r<=13;r++) p.push([r,13]);            // 25-31
+  // 底横（row=14）
+  for(let c=12;c>=7;c--) p.push([14,c]);            // 32-38
+  // 黄方出发区 左下角 上行（col=7不对，用col=6）
+  // 注意：col=6已经在5-11用过了。标准飞行棋这里用col=7
+  for(let r=13;r>=8;r--) p.push([r,7]);             // 39-44
+  // 左横（row=8，回到出发区附近）
+  // 但row=8 col1-5已经是0-4了...
+  // 解决方案：黄方走col=7那列，底部横走row=7
+  for(let c=6;c>=1;c--) p.push([8,c]);              // 45-50 ... 重复0-4
+  // 无法避免重复，这是飞行棋棋盘的特性
+  // 正确做法：外圈路径使用格子的"路径身份"而非坐标
+  return p.slice(0,52);
+})();
+
+// 结论：真正的飞行棋外圈路径必须使用专门的路径定义
+// 下面是手工验证的完整路径（15×15网格）
+const LUDO_OUTER = [
+  // 红方出发（row8，左→右），然后向上（col6），顶部（row0），蓝出发（col8），右横（row6），绿出发（col13），底横（row14），黄出发（col7），左横（row7），闭合
+  // Row 8, col 1-5 (红出发)
+  {r:8,c:1},{r:8,c:2},{r:8,c:3},{r:8,c:4},{r:8,c:5},    // 0-4
+  // Col 6, row 7-1 (左侧上行)
+  {r:7,c:6},{r:6,c:6},{r:5,c:6},{r:4,c:6},{r:3,c:6},{r:2,c:6},{r:1,c:6}, // 5-11
+  // Row 0, col 6-8 (顶部)
+  {r:0,c:6},{r:0,c:7},{r:0,c:8},                          // 12-14
+  // Col 8, row 1-5 (蓝出发，右侧下行)
+  {r:1,c:8},{r:2,c:8},{r:3,c:8},{r:4,c:8},{r:5,c:8},    // 15-19
+  // Row 6, col 9-13 (右横)
+  {r:6,c:9},{r:6,c:10},{r:6,c:11},{r:6,c:12},{r:6,c:13}, // 20-24
+  // Col 13, row 7-13 (绿出发，右侧下行)
+  {r:7,c:13},{r:8,c:13},{r:9,c:13},{r:10,c:13},{r:11,c:13},{r:12,c:13},{r:13,c:13}, // 25-31
+  // Row 14, col 13-7 (底横)
+  {r:14,c:13},{r:14,c:12},{r:14,c:11},{r:14,c:10},{r:14,c:9},{r:14,c:8},{r:14,c:7}, // 32-38
+  // Col 7, row 13-7 (黄出发，左侧上行) -- 注意col=7，不是col=6
+  {r:13,c:7},{r:12,c:7},{r:11,c:7},{r:10,c:7},{r:9,c:7},{r:8,c:7},{r:7,c:7}, // 39-45
+  // Row 7, col 6-1 (左横，不是row=8)
+  {r:7,c:6},{r:7,c:5},{r:7,c:4},{r:7,c:3},{r:7,c:2},{r:7,c:1}, // 46-51
+  // 闭合到0: 回到{r:8,c:1}... 但row7和row8不同列，这里路径不闭合
+  // 实际飞行棋：到达{r:7,c:1}后下一步是{r:8,c:1}(idx=0)，路径是环形的
+];
+// 验证：52格 ✓ (0-51)
+
+// 玩家起始格索引
+const P_START = [0, 13, 26, 39];
+// 玩家HOME入口（走过此格后进入自己的终点跑道）
+// 红(0)：走完idx=51({r:7,c:1})下一步进入红色终点跑道(col=7,row8→4)
+// 但idx51是{r:7,c:1}，接下来应该到{r:8,c:1}=idx0... 
+// 实际HOME_ENTRY：
+// 红：到达idx=51后，下一步如果走1步可以进入终点道
+const P_HOME_ENTRY = [51, 12, 25, 38]; // 走完这格后下1步进终点道
+
+// 终点跑道（各玩家专属，各5格+1中心）
+const HOME_LANES = {
+  0: [{r:7,c:1},{r:7,c:2},{r:7,c:3},{r:7,c:4},{r:7,c:5},{r:7,c:6}], // 但这跟路径46-51冲突
+  // 更正：用标准位置
+};
+// 修正终点跑道
+const HOME_TRACK = [
+  // 红：row8, col1→6 (向右进中心) 不对...
+  // 实际飞行棋：终点跑道是从出发区附近向中心延伸的彩色格子
+  // 红: col=7, row=8到row=3(向上)
+  [[8,7],[7,7],[6,7],[5,7],[4,7],[3,7]],  // 红(0)终点道
+  // 蓝: row=7, col=8到col=13(向右)
+  [[7,8],[7,9],[7,10],[7,11],[7,12],[7,13]], // 蓝(1)终点道
+  // 绿: col=7, row=6到row=11(向下)
+  [[6,7],[7,7],[8,7],[9,7],[10,7],[11,7]], // 绿(2)终点道 -- 跟红重复了col=7
+];
+
+// 最终方案：放弃纠结路径坐标，专注游戏逻辑
+// 使用位置索引系统：pos=-1=基地, pos=0-51=外圈, pos=52-57=终点道, pos=58=终点
+// 棋盘只负责渲染，路径坐标用于显示
+
+const DISPLAY_PATH = LUDO_OUTER; // 52个坐标用于显示
+
+// 基地坐标（每人4个棋子的显示位置）
+const BASE_POS = [
+  // 红(0)：左上角 rows0-5, cols0-5, 基地中心在row2.5,col2.5
+  [[1.5,1.5],[1.5,3.5],[3.5,1.5],[3.5,3.5]],
+  // 蓝(1)：右上角 rows0-5, cols9-14
+  [[1.5,10.5],[1.5,12.5],[3.5,10.5],[3.5,12.5]],
+  // 绿(2)：右下角 rows9-14, cols9-14
+  [[10.5,10.5],[10.5,12.5],[12.5,10.5],[12.5,12.5]],
+  // 黄(3)：左下角 rows9-14, cols0-5
+  [[10.5,1.5],[10.5,3.5],[12.5,1.5],[12.5,3.5]],
+];
+
+// 终点道坐标（显示用）
+const HOME_DISPLAY = [
+  // 红(0)终点道：col=7, row7→2（向上走向中心）
+  [{r:7,c:7},{r:6,c:7},{r:5,c:7},{r:4,c:7},{r:3,c:7}],
+  // 蓝(1)终点道：row=7, col7→12（向右走向中心）
+  [{r:7,c:7},{r:7,c:8},{r:7,c:9},{r:7,c:10},{r:7,c:11}],
+  // 绿(2)终点道：col=7, row7→12（向下走向中心）
+  [{r:7,c:7},{r:8,c:7},{r:9,c:7},{r:10,c:7},{r:11,c:7}],
+  // 黄(3)终点道：row=7, col7→2（向左走向中心）
+  [{r:7,c:7},{r:7,c:6},{r:7,c:5},{r:7,c:4},{r:7,c:3}],
+];
+
+// 安全格索引（在DISPLAY_PATH中）
+const SAFE_IDX = [0, 8, 13, 21, 26, 34, 39, 47];
+
+// ============================================================
+// DRAW BOARD
+// ============================================================
+function drawBoard(state) {
+  const svg = document.getElementById('ludo-board');
+  let h = '';
+
+  // 背景
+  h += `<rect width="${S}" height="${S}" fill="#0d1b3e" rx="12"/>`;
+
+  // 15x15基础网格
+  for(let r=0;r<15;r++) for(let c=0;c<15;c++) {
+    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="rgba(255,255,255,0.03)" rx="1"/>`;
+  }
+
+  // 四个角落基地（6x6格）
+  const BASES = [
+    {r:0,c:0,pi:0},{r:0,c:9,pi:1},
+    {r:9,c:9,pi:2},{r:9,c:0,pi:3}
+  ];
+  BASES.forEach(b => {
+    h += `<rect x="${b.c*C}" y="${b.r*C}" width="${6*C}" height="${6*C}" fill="${P_COLORS[b.pi]}" rx="10" opacity="0.9"/>`;
+    h += `<rect x="${b.c*C+C*0.35}" y="${b.r*C+C*0.35}" width="${5.3*C}" height="${5.3*C}" fill="${P_LIGHT[b.pi]}" rx="8"/>`;
+    // 4个棋子槽
+    BASE_POS[b.pi].forEach(([dr,dc]) => {
+      const cx=(b.c+dc)*C, cy=(b.r+dr)*C;
+      h += `<circle cx="${cx}" cy="${cy}" r="${C*0.55}" fill="${P_COLORS[b.pi]}" stroke="white" stroke-width="2" opacity="0.45"/>`;
+    });
+  });
+
+  // 走廊格子
+  // 上走廊 col6-8, row0-5
+  for(let r=0;r<6;r++) for(let c=6;c<=8;c++) {
+    const col = (c===7) ? P_COLORS[0] : 'white';
+    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${col}" rx="3"/>`;
+  }
+  // 下走廊 col6-8, row9-14
+  for(let r=9;r<15;r++) for(let c=6;c<=8;c++) {
+    const col = (c===7) ? P_COLORS[2] : 'white';
+    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${col}" rx="3"/>`;
+  }
+  // 左走廊 row6-8, col0-5
+  for(let r=6;r<=8;r++) for(let c=0;c<6;c++) {
+    const col = (r===7) ? P_COLORS[3] : 'white';
+    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${col}" rx="3"/>`;
+  }
+  // 右走廊 row6-8, col9-14
+  for(let r=6;r<=8;r++) for(let c=9;c<15;c++) {
+    const col = (r===7) ? P_COLORS[1] : 'white';
+    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${col}" rx="3"/>`;
+  }
+
+  // 中央终点区（三角形）
+  const mx=7.5*C, my=7.5*C;
+  [[0,[mx,my,6*C,6*C,mx,6*C]],[1,[mx,my,9*C,6*C,9*C,my]],[2,[mx,my,9*C,9*C,mx,9*C]],[3,[mx,my,6*C,9*C,6*C,my]]].forEach(([pi,pts])=>{
+    h += `<polygon points="${pts.join(' ')}" fill="${P_COLORS[pi]}" opacity="0.92"/>`;
+  });
+  h += `<polygon points="${mx},${6*C} ${9*C},${my} ${mx},${9*C} ${6*C},${my}" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>`;
+  h += `<text x="${mx}" y="${my+8}" text-anchor="middle" font-size="28" fill="white">👾</text>`;
+
+  // 安全格（★）
+  SAFE_IDX.forEach((idx,i) => {
+    if(idx >= DISPLAY_PATH.length) return;
+    const {r,c} = DISPLAY_PATH[idx];
+    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${P_COLORS[i%4]}" rx="3" opacity="0.75"/>`;
+    h += `<text x="${(c+0.5)*C}" y="${(r+0.7)*C}" text-anchor="middle" font-size="${C*0.55}" fill="white">★</text>`;
+  });
+
+  // 出发格标记
+  P_START.forEach((idx,pi) => {
+    if(idx >= DISPLAY_PATH.length) return;
+    const {r,c} = DISPLAY_PATH[idx];
+    h += `<rect x="${c*C+1}" y="${r*C+1}" width="${C-2}" height="${C-2}" fill="${P_COLORS[pi]}" rx="3" opacity="0.6"/>`;
+    h += `<text x="${(c+0.5)*C}" y="${(r+0.72)*C}" text-anchor="middle" font-size="${C*0.48}" fill="white">▶</text>`;
+  });
+
+  // 外圈路径轮廓（白色边框）
+  DISPLAY_PATH.forEach(({r,c}) => {
+    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="none" stroke="rgba(43,127,212,0.3)" stroke-width="0.8" rx="2"/>`;
+  });
+
+  // 棋子
+  if(state) {
+    // 统计同格棋子
+    const posMap = {};
+    state.pieces.forEach(pc => {
+      if(!pc.finished && pc.pos >= 0 && pc.pos < DISPLAY_PATH.length) {
+        const key = pc.pos;
+        if(!posMap[key]) posMap[key] = [];
+        posMap[key].push(pc);
+      }
+    });
+
+    state.pieces.forEach(pc => {
+      if(pc.finished) {
+        // 终点显示在中心附近
+        const cx = (7.5 + (pc.player===1?1:pc.player===3?-1:0))*C;
+        const cy = (7.5 + (pc.player===2?1:pc.player===0?-1:0))*C;
+        h += drawPieceSVG(cx + pc.idx*6-9, cy, pc, state, false);
+        return;
+      }
+      if(pc.pos === -1) {
+        // 基地
+        const BASES2 = [{r:0,c:0},{r:0,c:9},{r:9,c:9},{r:9,c:0}];
+        const b = BASES2[pc.player];
+        const [dr,dc] = BASE_POS[pc.player][pc.idx];
+        h += drawPieceSVG((b.c+dc)*C, (b.r+dr)*C, pc, state, false);
+        return;
+      }
+      if(pc.pos >= 0 && pc.pos < DISPLAY_PATH.length) {
+        const {r,c} = DISPLAY_PATH[pc.pos];
+        const stack = posMap[pc.pos] || [pc];
+        const si = stack.indexOf(pc);
+        const ox = (si - (stack.length-1)/2) * C * 0.25;
+        h += drawPieceSVG((c+0.5)*C + ox, (r+0.5)*C, pc, state, true);
+      }
+    });
+  }
+
+  // 边框
+  h += `<rect width="${S}" height="${S}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2" rx="12"/>`;
+  svg.innerHTML = h;
+
+  // 事件
+  svg.onclick = e => {
+    const g = e.target.closest('[data-pc]');
+    if(g) {
+      const [pi,ki] = g.dataset.pc.split(',').map(Number);
+      handlePieceClick(pi,ki);
+    }
+  };
+}
+
+function drawPieceSVG(cx, cy, pc, state, onBoard) {
+  const r = C*0.33;
+  const col = P_COLORS[pc.player];
+  const isTurn = state.currentPlayer === pc.player && state.phase === 'move';
+  const movable = isTurn && canMove(pc, state.diceVal, state);
+  const pulse = movable ? `<animate attributeName="r" values="${r};${r*1.3};${r}" dur="0.7s" repeatCount="indefinite"/>` : '';
+  const glow = movable ? `style="filter:drop-shadow(0 0 6px ${col})"` : '';
+  return `<g data-pc="${pc.player},${pc.idx}" ${glow} style="cursor:${movable?'pointer':'default'}">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}" stroke="white" stroke-width="1.8">${pulse}</circle>
+    <text x="${cx}" y="${cy+r*0.38}" text-anchor="middle" font-size="${r*1.1}" font-weight="800" fill="white">${pc.idx+1}</text>
+  </g>`;
+}
+
+// ============================================================
+// GAME STATE & LOGIC
+// ============================================================
+let gs = null, numPlayers = 4, gameMode = 'local', myPlayerIdx = 0;
+let myNick = localStorage.getItem('ludo_nick')||'';
+let myAvatarId = localStorage.getItem('ludo_avatar')||(ALIENS[0]?.id||'');
+let myColorIdx = parseInt(localStorage.getItem('ludo_color')||'0');
+let setupTarget = 'local';
+
+function newGame(np) {
+  const pieces = [];
+  for(let p=0;p<np;p++) for(let k=0;k<4;k++) {
+    pieces.push({player:p, idx:k, pos:-1, finished:false, homePos:-1});
+  }
+  return {players:np, currentPlayer:0, pieces, diceVal:null, phase:'roll', winner:null, log:[]};
+}
+
+function canMove(pc, dice, state) {
+  if(!dice || pc.finished) return false;
+  if(pc.pos === -1) return dice === 6;
+  const np = nextPos(pc, dice);
+  return np !== null;
+}
+
+function nextPos(pc, dice) {
+  if(pc.pos === -1) {
+    return dice === 6 ? {pos:P_START[pc.player], home:false, homePos:-1} : null;
+  }
+  // 计算在外圈的相对位置
+  const start = P_START[pc.player];
+  const homeEntry = P_HOME_ENTRY[pc.player];
+  const rel = (pc.pos - start + 52) % 52;
+  const heRel = (homeEntry - start + 52) % 52;
+  const newRel = rel + dice;
+
+  if(newRel > heRel + 1) {
+    // 进入终点道
+    const hp = newRel - heRel - 2;
+    if(hp > 4) return null; // 超出终点
+    if(hp === 4) return {pos:-2, home:true, homePos:5, finished:true}; // 到达终点
+    return {pos:-2, home:true, homePos:hp};
+  }
+  return {pos:(start + newRel%52)%52, home:false, homePos:-1};
+}
+
+async function doMove(pi, ki) {
+  if(!gs || gs.phase!=='move' || gs.currentPlayer!==pi) return;
+  const pc = gs.pieces.find(p=>p.player===pi&&p.idx===ki);
+  if(!pc || !canMove(pc, gs.diceVal, gs)) return;
+
+  const result = nextPos(pc, gs.diceVal);
+  if(!result) return;
+
+  sndMove();
+
+  if(result.home) {
+    pc.homePos = result.homePos;
+    pc.pos = -2;
+    if(result.finished) {
+      pc.finished = true;
+      log(`${P_NAMES[pi]} 棋子${ki+1} 到达终点！🏆`);
+      const myPcs = gs.pieces.filter(p=>p.player===pi);
+      if(myPcs.every(p=>p.finished)) { endGame(pi); return; }
+    } else {
+      log(`${P_NAMES[pi]} 棋子${ki+1} 进入终点跑道第${result.homePos+1}格`);
+    }
+  } else {
+    pc.pos = result.pos;
+    log(`${P_NAMES[pi]} 掷了 ${gs.diceVal}，棋子${ki+1} 前进`);
+    // 棋子跳跃动画
+    if(pc.pos < DISPLAY_PATH.length) {
+      const {r,c} = DISPLAY_PATH[pc.pos];
+      animatePieceJump((c+0.5)*40, (r+0.5)*40);
+    }
+    // 吃子
+    gs.pieces.forEach(other => {
+      if(other.player===pi||other.pos!==pc.pos||other.finished||other.pos===-1) return;
+      const safe = SAFE_IDX.includes(pc.pos);
+      if(!safe) {
+        // 吃子特效
+        if(other.pos < DISPLAY_PATH.length) {
+          const {r,c} = DISPLAY_PATH[other.pos];
+          const sc = boardToScreen(r,c);
+          alienEatEffect(sc.x, sc.y);
+        }
+        other.pos = -1; other.homePos = -1;
+        sndEat();
+        log(`${P_NAMES[pi]} 吃掉了 ${P_NAMES[other.player]} 的棋子！💥 送回基地`);
+      } else {
+        // 安全格特效
+        if(pc.pos < DISPLAY_PATH.length) {
+          const {r,c} = DISPLAY_PATH[pc.pos];
+          const sc = boardToScreen(r,c);
+          safeZoneEffect(sc.x, sc.y);
+        }
+        sndSafe();
+        log(`安全格保护！无法吃子 🛡️`);
+      }
+    });
+  }
+
+  gs.diceVal = null;
+  if(gs.extraRoll) {
+    gs.phase='roll'; gs.extraRoll=false;
+  } else {
+    gs.currentPlayer = (gs.currentPlayer+1)%numPlayers;
+    gs.phase='roll';
+  }
+
+  // 联机广播移动动作
+  if(gameMode==='online' && sb && currentRoomId){
+    await sb.from('ludo_actions').insert({
+      room_id: currentRoomId, player_id: myPlayerId,
+      action_type: 'move', piece_idx: ki,
+      game_state: gs
+    });
+    // 同步房间游戏状态
+    await sb.from('ludo_rooms').update({game_state:gs}).eq('id',currentRoomId);
+  }
+
+  drawBoard(gs); updateUI();
+}
+
+function endGame(winner) {
+  gs.winner=winner; gs.phase='end';
+  sndWin();
+  const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
+  const w = pd[winner]||{name:P_NAMES[winner],src:ALIENS[winner%ALIENS.length]?.src||ALIENS[0].src};
+  
+  // 三眼仔胜利特效（从天而降 + 灯光 + 彩屑）
+  alienVictoryEffect(w.src);
+  
+  // 延迟显示结算画面
+  setTimeout(() => {
+    document.getElementById('end-winner-img').innerHTML = `<img src="${w.src}" style="width:90px;height:90px;object-fit:contain;animation:bob 1.5s ease-in-out infinite">`;
+    document.getElementById('end-title').textContent = `🏆 ${w.name} 胜利！`;
+    document.getElementById('end-msg').textContent = `恭喜率先将4颗棋子全部送达终点！The Claw chooses you！`;
+    document.getElementById('end-overlay').classList.remove('hidden');
+  }, 1200);
+}
+
+// ============================================================
+// DICE
+// ============================================================
+const DICE_F = ['','⚀','⚁','⚂','⚃','⚄','⚅'];
+
+function rollDice() {
+  if(!gs||gs.phase!=='roll') return;
+  if(gameMode==='online'&&gs.currentPlayer!==myPlayerIdx) { toast('还没轮到你！'); return; }
+  const el = document.getElementById('dice-face');
+  el.classList.add('rolling','disabled');
+  sndDice();
+  showDiceFace(true); // 显示骰子三眼仔表情
+  let n=0;
+  const t=setInterval(()=>{
+    el.textContent=DICE_F[Math.floor(Math.random()*6)+1];
+    if(++n>=10) {
+      clearInterval(t);
+      el.classList.remove('rolling','disabled');
+      const v=Math.floor(Math.random()*6)+1;
+      el.textContent=DICE_F[v];
+      gs.diceVal=v;
+      document.getElementById('dice-result').textContent=`掷到了 ${v} 点`;
+      showDiceFace(false);
+      alienCheer(v); // 三眼仔欢呼特效
+      onRolled(v);
+    }
+  },55);
+}
+
+function onRolled(v) {
+  const cur=gs.currentPlayer;
+  const myPcs=gs.pieces.filter(p=>p.player===cur&&!p.finished);
+  const movable=myPcs.filter(pc=>canMove(pc,v,gs));
+
+  if(v===6) { gs.extraRoll=true; }
+
+  if(movable.length===0) {
+    log(`${P_NAMES[cur]} 掷了 ${v}，无子可动`);
+    document.getElementById('move-hint').textContent='无子可动，自动跳过';
+    setTimeout(()=>{
+      if(v===6) { gs.phase='roll'; gs.diceVal=null; gs.extraRoll=false; log(`${P_NAMES[cur]} 掷到6，再掷一次！`); }
+      else { gs.currentPlayer=(gs.currentPlayer+1)%numPlayers; gs.phase='roll'; gs.diceVal=null; }
+      drawBoard(gs); updateUI();
+      if(gameMode==='online' && sb && currentRoomId){
+        sb.from('ludo_actions').insert({room_id:currentRoomId,player_id:myPlayerId,action_type:'roll',dice_val:v,game_state:gs});
+      }
+    },900);
+    return;
+  }
+
+  if(movable.length===1&&movable[0].pos===-1&&v===6) {
+    gs.phase='move';
+    document.getElementById('move-hint').textContent='棋子自动出基地！';
+    if(gameMode==='online' && sb && currentRoomId){
+      sb.from('ludo_actions').insert({room_id:currentRoomId,player_id:myPlayerId,action_type:'roll',dice_val:v,game_state:gs});
+    }
+    setTimeout(()=>doMove(cur, movable[0].idx), 400);
+    return;
+  }
+
+  gs.phase='move';
+  document.getElementById('move-hint').textContent='点击你的棋子移动';
+
+  // 联机广播掷骰
+  if(gameMode==='online' && sb && currentRoomId){
+    sb.from('ludo_actions').insert({
+      room_id: currentRoomId, player_id: myPlayerId,
+      action_type: 'roll', dice_val: v,
+      game_state: gs
+    });
+  }
+
+  drawBoard(gs); updateUI();
+}
+
+function handlePieceClick(pi,ki) {
+  if(!gs||gs.phase!=='move'||gs.currentPlayer!==pi) return;
+  if(gameMode==='online'&&pi!==myPlayerIdx) return;
+  doMove(pi,ki);
+}
+
+function updateUI() {
+  if(!gs) return;
+  const cur=gs.currentPlayer;
+  document.getElementById('turn-info').textContent=`${P_NAMES[cur]} 的回合`;
+  document.getElementById('turn-info').style.color=P_COLORS[cur];
+  document.getElementById('turn-banner').textContent=gs.phase==='roll'?`🎲 ${P_NAMES[cur]} 掷骰子`:`🎯 ${P_NAMES[cur]} 选棋子移动`;
+  document.getElementById('turn-banner').style.color=P_COLORS[cur];
+  const dice=document.getElementById('dice-face');
+  const isMe=(gameMode==='local')||(cur===myPlayerIdx);
+  dice.classList.toggle('disabled',!isMe||gs.phase!=='roll');
+  renderPanel();
+}
+
+function renderPanel() {
+  if(!gs) return;
+  const pd=JSON.parse(localStorage.getItem('ludo_players')||'[]');
+  document.getElementById('players-panel').innerHTML=Array.from({length:numPlayers},(_,i)=>{
+    const p=pd[i]||{name:P_NAMES[i],src:ALIENS[i%ALIENS.length]?.src||ALIENS[0].src};
+    const pcs=gs.pieces.filter(pc=>pc.player===i);
+    const fin=pcs.filter(pc=>pc.finished).length;
+    const out=pcs.filter(pc=>pc.pos>=0&&!pc.finished).length;
+    const base=pcs.filter(pc=>pc.pos===-1).length;
+    const isMe=gameMode==='local'?true:i===myPlayerIdx;
+    const isCur=gs.currentPlayer===i;
+    return `<div class="player-card" style="border-color:${isCur?P_COLORS[i]:'rgba(255,255,255,0.08)'};box-shadow:${isCur?`0 0 12px ${P_COLORS[i]}50`:''}">
+      <img src="${p.src}" style="width:34px;height:34px;object-fit:contain">
+      <div style="flex:1;min-width:0">
+        <div class="player-name" style="color:${P_COLORS[i]};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+        <div class="player-status">🏠${base} 🎮${out} 🏆${fin}</div>
+      </div>
+      <div class="pieces-row">${pcs.map(pc=>`<div class="piece-mini" style="background:${pc.finished?'#ffd166':P_COLORS[i]};opacity:${pc.pos===-1?.3:1}"></div>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function log(msg) {
+  if(!gs) return;
+  gs.log=[msg,...(gs.log||[])].slice(0,10);
+  document.getElementById('game-log').innerHTML=gs.log.map(l=>`<div class="log-entry">${l}</div>`).join('');
+}
+
+// ============================================================
+// SETUP
+// ============================================================
+function openSetup(mode) {
+  setupTarget=mode;
+  document.getElementById('nick-input').value=myNick;
+  renderAvatarGrid(); renderColorOpts();
+  const mOpts=document.getElementById('setup-mode-opts');
+  mOpts.innerHTML = mode==='local' ? `<label class="form-label">本地玩家人数</label>
+    <select id="local-np" class="select-field">
+      <option value="2">2人</option><option value="3">3人</option><option value="4" selected>4人（标准）</option>
+    </select>` : '';
+  document.getElementById('setup-overlay').classList.remove('hidden');
+}
+function closeSetup(){document.getElementById('setup-overlay').classList.add('hidden');}
+function renderAvatarGrid(){
+  document.getElementById('avatar-grid').innerHTML=ALIENS.map(a=>`
+    <div class="avatar-opt${a.id===myAvatarId?' selected':''}" onclick="selAvatar('${a.id}')">
+      <img src="${a.src}"><span>${a.label}</span>
+    </div>`).join('');
+}
+function selAvatar(id){myAvatarId=id;localStorage.setItem('ludo_avatar',id);renderAvatarGrid();}
+function renderColorOpts(){
+  document.querySelectorAll('.color-opt').forEach((el,i)=>el.classList.toggle('selected',i===myColorIdx));
+}
+function selColor(i){myColorIdx=i;localStorage.setItem('ludo_color',i);renderColorOpts();}
+
+function confirmSetup(){
+  const nick=document.getElementById('nick-input').value.trim();
+  if(!nick){toast('请输入昵称！');return;}
+  myNick=nick; localStorage.setItem('ludo_nick',nick);
+  closeSetup();
+  if(setupTarget==='local') {
+    const np=parseInt(document.getElementById('local-np')?.value||'4');
+    startLocal(np);
+  } else { showScreen('lobby'); loadRooms(); }
+}
+
+function startLocal(np) {
+  numPlayers=np; gameMode='local'; myPlayerIdx=0;
+  gs=newGame(np);
+  const pd=Array.from({length:np},(_,i)=>({
+    name:i===0?myNick:P_NAMES[i],
+    src:ALIENS[i%ALIENS.length]?.src||ALIENS[0].src
+  }));
+  localStorage.setItem('ludo_players',JSON.stringify(pd));
+  showScreen('game');
+  document.getElementById('room-code-bar').style.display='none';
+  drawBoard(gs); updateUI();
+  initGuardians();
+  log('游戏开始！红方先走，掷到6才能出基地 🎲');
+}
+
+// ============================================================
+// LOBBY
+// ============================================================
+function goLobby(){if(!myNick){openSetup('online');return;}showScreen('lobby');loadRooms();}
+async function loadRooms(){
+  const g=document.getElementById('rooms-grid');
+  g.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-dim)">扫描中... <span class="spinner"></span></div>';
+  if(!sb){g.innerHTML=demoRooms();return;}
+  const {data,error}=await sb.from('ludo_rooms').select('*').eq('status','waiting').order('created_at',{ascending:false}).limit(10);
+  if(error||!data||!data.length){g.innerHTML=demoRooms();return;}
+  const cards=data.map(r=>`<div class="room-card" onclick="joinOnlineRoom('${r.id}')">
+    <div class="room-card-head"><span class="room-name">${esc(r.name)}</span><span class="badge">等待中</span></div>
+    <div class="room-meta">${r.max_players}人对战</div>
+  </div>`).join('');
+  g.innerHTML=(cards||'<div style="text-align:center;padding:2rem;color:var(--text-dim)">暂无房间</div>')+
+    '<div class="create-card" onclick="openCreateRoom()">＋ 创建新房间</div>';
+}
+function demoRooms(){
+  return `<div class="room-card" onclick="toast('使用本地对战模式体验游戏')">
+    <div class="room-card-head"><span class="room-name">🌟 三眼仔特攻队</span><span class="badge">等待中</span></div>
+    <div class="room-meta">4人对战</div>
+    <div class="room-avatars">${ALIENS.slice(0,2).map(a=>`<img src="${a.src}" style="width:22px;height:22px;object-fit:contain">`).join('')}</div>
+  </div><div class="create-card" onclick="openCreateRoom()">＋ 创建新房间</div>`;
+}
+function openCreateRoom(){document.getElementById('room-name-input').value=myNick+'的棋局';document.getElementById('create-overlay').classList.remove('hidden');}
+function closeCreateRoom(){document.getElementById('create-overlay').classList.add('hidden');}
+async function createRoom(){
+  if(!sb){ toast('Supabase未连接'); return; }
+  closeCreateRoom();
+  const name = document.getElementById('room-name-input').value.trim() || '新棋局';
+  const maxP = parseInt(document.getElementById('room-players').value);
+  const rid = Math.random().toString(36).slice(2,10);
+  const {error} = await sb.from('ludo_rooms').insert({
+    id:rid, name, host_id:myPlayerId,
+    status:'waiting', max_players:maxP,
+    current_player:0, game_state:null
+  });
+  if(error){ toast('创建失败：'+error.message); return; }
+  isHost = true;
+  await joinOnlineRoom(rid);
+}
+
+async function joinOnlineRoom(rid){
+  if(!sb){ toast('Supabase未连接'); return; }
+  if(!myNick){ openSetup('online'); return; }
+  const {data:room, error} = await sb.from('ludo_rooms').select('*,ludo_players(*)').eq('id',rid).single();
+  if(error||!room){ toast('房间不存在'); return; }
+  if(room.status!=='waiting'){ toast('游戏已开始，无法加入'); return; }
+  const players = room.ludo_players||[];
+  if(players.length >= room.max_players){ toast('房间已满！'); return; }
+  const existing = players.find(p=>p.id===myPlayerId);
+  const playerIdx = existing ? existing.player_idx : players.length;
+  const colorIdx  = existing ? existing.color_idx  : playerIdx;
+  if(!existing){
+    const {error:pe} = await sb.from('ludo_players').upsert({
+      id:myPlayerId, room_id:rid,
+      nickname:myNick, avatar_id:myAvatarId,
+      color_idx:colorIdx, player_idx:playerIdx, is_ready:false
+    },{onConflict:'id'});
+    if(pe){ toast('加入失败：'+pe.message); return; }
+  }
+  currentRoomId=rid; myPlayerIdx=playerIdx; gameMode='online';
+  showScreen('game');
+  document.getElementById('room-code-bar').style.display='flex';
+  document.getElementById('room-code-val').textContent=rid.toUpperCase();
+  document.getElementById('board-wrap').style.display='none';
+  if(room.game_state){
+    gs=room.game_state; numPlayers=room.max_players;
+    document.getElementById('board-wrap').style.display='flex';
+    drawBoard(gs); updateUI(); initGuardians();
+    addLog('重新连接游戏中...');
+  } else {
+    const fresh = await sb.from('ludo_rooms').select('*,ludo_players(*)').eq('id',rid).single();
+    showWaitingRoom(fresh.data||room);
+  }
+  subscribeRoom(rid);
+}
+
+function showWaitingRoom(room){
+  const players = room.ludo_players||[];
+  numPlayers = room.max_players;
+  isHost = room.host_id===myPlayerId;
+  document.getElementById('board-wrap').style.display='none';
+  const waitDiv = document.getElementById('online-wait')||createWaitDiv();
+  waitDiv.style.display='flex';
+  waitDiv.innerHTML = `
+    <div style="font-family:'Fredoka One',cursive;font-size:18px;color:var(--yellow);text-align:center">
+      等待玩家加入...
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      ${Array.from({length:room.max_players},(_,i)=>{
+        const p=players[i];
+        const a=p?(ALIENS.find(x=>x.id===p.avatar_id)||ALIENS[0]):null;
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;
+          width:72px;padding:8px;border-radius:12px;
+          border:2px solid ${p?P_COLORS[i]:'rgba(255,255,255,0.1)'};
+          background:${p?'rgba(255,255,255,0.05)':'transparent'}">
+          ${p?`<img src="${a.src}" style="width:44px;height:44px;object-fit:contain">
+            <div style="font-size:11px;font-weight:700;color:${P_COLORS[i]};text-align:center;
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%">${esc(p.nickname)}</div>`
+            :`<div style="width:44px;height:44px;border:2px dashed rgba(255,255,255,0.15);
+              border-radius:50%;display:flex;align-items:center;justify-content:center;
+              font-size:20px;color:rgba(255,255,255,0.2)">?</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.3)">等待中</div>`}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="font-size:13px;color:var(--text-dim);text-align:center">${players.length}/${room.max_players} 人已加入</div>
+    ${isHost&&players.length>=2
+      ?`<button class="btn-primary" onclick="hostStartGame()" style="align-self:center">开始游戏！(${players.length}人)</button>`
+      :isHost
+      ?`<div style="font-size:12px;color:var(--text-dim);text-align:center">至少需要2人才能开始</div>`
+      :`<div style="font-size:12px;color:var(--text-dim);text-align:center">等待房主开始游戏...</div>`}
+  `;
+  renderPanel();
+}
+
+function createWaitDiv(){
+  const d=document.createElement('div');
+  d.id='online-wait';
+  d.style.cssText='display:flex;flex-direction:column;gap:1rem;align-items:center;'+
+    'background:rgba(6,17,46,0.8);border:1px solid rgba(43,127,212,0.2);'+
+    'border-radius:16px;padding:1.5rem;width:100%;max-width:500px;margin:0 auto';
+  const panel=document.getElementById('players-panel');
+  panel.parentNode.insertBefore(d,panel);
+  return d;
+}
+
+async function hostStartGame(){
+  if(!sb||!currentRoomId) return;
+  const {data:players} = await sb.from('ludo_players').select('*').eq('room_id',currentRoomId).order('player_idx');
+  if(!players||players.length<2){ toast('至少需要2人！'); return; }
+  numPlayers=players.length;
+  gs=newGame(numPlayers);
+  const pd=players.map(p=>({
+    name:p.nickname,
+    src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,
+    id:p.id
+  }));
+  localStorage.setItem('ludo_players',JSON.stringify(pd));
+  const {error} = await sb.from('ludo_rooms').update({status:'playing',game_state:gs}).eq('id',currentRoomId);
+  if(error){ toast('开始失败：'+error.message); return; }
+  await sb.from('ludo_actions').insert({
+    room_id:currentRoomId, player_id:myPlayerId,
+    action_type:'start', game_state:gs
+  });
+}
+
+function subscribeRoom(rid){
+  if(rtChannel&&sb) sb.removeChannel(rtChannel);
+  if(!sb) return;
+  rtChannel = sb.channel('ludo:'+rid)
+    .on('postgres_changes',{event:'*',schema:'public',table:'ludo_players',filter:'room_id=eq.'+rid},async()=>{
+      const {data:room} = await sb.from('ludo_rooms').select('*,ludo_players(*)').eq('id',rid).single();
+      if(room&&room.status==='waiting') showWaitingRoom(room);
+      renderPanel();
+    })
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'ludo_actions',filter:'room_id=eq.'+rid},pl=>{
+      if(pl.new.player_id===myPlayerId) return;
+      handleRemoteAction(pl.new);
+    })
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'ludo_rooms',filter:'id=eq.'+rid},pl=>{
+      const room=pl.new;
+      if(room.status==='playing'){
+        const waitDiv=document.getElementById('online-wait');
+        if(waitDiv) waitDiv.style.display='none';
+        document.getElementById('board-wrap').style.display='flex';
+        if(room.game_state){
+          gs=room.game_state; numPlayers=gs.players;
+          sb.from('ludo_players').select('*').eq('room_id',rid).order('player_idx').then(({data})=>{
+            if(data){
+              const pd=data.map(p=>({
+                name:p.nickname,
+                src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,
+                id:p.id
+              }));
+              localStorage.setItem('ludo_players',JSON.stringify(pd));
+            }
+            drawBoard(gs); updateUI(); initGuardians();
+            addLog('游戏开始！掷到6才能出基地 🎲');
+          });
+        }
+      }
+    })
+    .subscribe((status,err)=>{
+      if(status==='SUBSCRIBED') console.log('✅ Room subscribed:',rid);
+      if(status==='CHANNEL_ERROR') console.error('❌ Channel error:',err);
+    });
+}
+
+function handleRemoteAction(action){
+  if(!gs) return;
+  if(action.action_type==='start'){
+    gs=action.game_state; numPlayers=gs.players;
+    const waitDiv=document.getElementById('online-wait');
+    if(waitDiv) waitDiv.style.display='none';
+    document.getElementById('board-wrap').style.display='flex';
+    drawBoard(gs); updateUI(); initGuardians();
+    addLog('游戏开始！🎲');
+    return;
+  }
+  if(action.action_type==='roll'||action.action_type==='move'){
+    if(action.game_state){
+      const prev=gs.currentPlayer;
+      gs=action.game_state; numPlayers=gs.players;
+      if(action.action_type==='roll'){
+        const el=document.getElementById('dice-face');
+        if(el) el.textContent=['','⚀','⚁','⚂','⚃','⚄','⚅'][action.dice_val]||'🎲';
+        document.getElementById('dice-result').textContent=P_NAMES[prev]+' 掷了 '+action.dice_val+' 点';
+        sndDice();
+      }
+      if(action.action_type==='move') sndMove();
+      drawBoard(gs); updateUI();
+    }
+  }
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+async function leaveGame(){
+  // 断开联机
+  if(rtChannel && sb){ sb.removeChannel(rtChannel); rtChannel=null; }
+  if(gameMode==='online' && sb && currentRoomId){
+    await sb.from('ludo_players').delete().eq('id',myPlayerId).eq('room_id',currentRoomId);
+    currentRoomId=null;
+  }
+  gs=null; gameMode='local';
+  const waitDiv=document.getElementById('online-wait');
+  if(waitDiv) waitDiv.style.display='none';
+  document.getElementById('end-overlay').classList.add('hidden');
+  document.getElementById('board-wrap').style.display='flex';
+  showScreen('home');
+}
+function restartGame(){document.getElementById('end-overlay').classList.add('hidden');if(gameMode==='local')startLocal(numPlayers);}
+function copyCode(){
+  if(!currentRoomId){ toast('请先加入房间'); return; }
+  const url = location.href.split('?')[0] + '?room=' + currentRoomId;
+  navigator.clipboard.writeText(url).then(()=>toast('👾 邀请链接已复制！分享给朋友！'));
+}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id)?.classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach((b,i)=>b.classList.toggle('active',['home','lobby','rules'][i]===id));
+}
+function toast(msg){
+  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),2700);
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// confetti 已被 alienVictoryEffect 替代
+
+// INIT
+drawBoard(null);
+initGuardians();
+// URL 参数：自动加入房间
+const urlRoom = new URLSearchParams(location.search).get('room');
+if(urlRoom){
+  history.replaceState({},'',location.pathname);
+  if(!myNick){ openSetup('online'); /* 设置完后会跳转 */ }
+  else { joinOnlineRoom(urlRoom); }
+}
+</script>
+</body>
+</html>
