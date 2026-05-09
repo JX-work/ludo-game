@@ -1062,6 +1062,9 @@ let myNick = localStorage.getItem('ludo_nick')||'';
 let myAvatarId = localStorage.getItem('ludo_avatar')||(ALIENS[0]?.id||'');
 let myColorIdx = parseInt(localStorage.getItem('ludo_color')||'0');
 let setupTarget = 'local';
+let currentRoomId = null;
+let isHost = false;
+let rtChannel = null;
 
 function newGame(np) {
   const pieces = [];
@@ -1440,7 +1443,7 @@ async function joinOnlineRoom(rid){
     gs=room.game_state; numPlayers=room.max_players;
     document.getElementById('board-wrap').style.display='flex';
     drawBoard(gs); updateUI(); initGuardians();
-    addLog('重新连接游戏中...');
+    log('重新连接游戏中...');
   } else {
     const fresh = await sb.from('ludo_rooms').select('*,ludo_players(*)').eq('id',rid).single();
     showWaitingRoom(fresh.data||room);
@@ -1549,7 +1552,7 @@ function subscribeRoom(rid){
               localStorage.setItem('ludo_players',JSON.stringify(pd));
             }
             drawBoard(gs); updateUI(); initGuardians();
-            addLog('游戏开始！掷到6才能出基地 🎲');
+            log('游戏开始！掷到6才能出基地 🎲');
           });
         }
       }
@@ -1568,7 +1571,7 @@ function handleRemoteAction(action){
     if(waitDiv) waitDiv.style.display='none';
     document.getElementById('board-wrap').style.display='flex';
     drawBoard(gs); updateUI(); initGuardians();
-    addLog('游戏开始！🎲');
+    log('游戏开始！🎲');
     return;
   }
   if(action.action_type==='roll'||action.action_type==='move'){
