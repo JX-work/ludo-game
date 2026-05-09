@@ -1057,6 +1057,7 @@ function drawPieceSVG(cx, cy, pc, state, onBoard) {
 // GAME STATE & LOGIC
 // ============================================================
 let gs = null, numPlayers = 4, gameMode = 'local', myPlayerIdx = 0;
+let myPlayerId = localStorage.getItem('ludo_pid') || (()=>{const id='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);localStorage.setItem('ludo_pid',id);return id;})();
 let myNick = localStorage.getItem('ludo_nick')||'';
 let myAvatarId = localStorage.getItem('ludo_avatar')||(ALIENS[0]?.id||'');
 let myColorIdx = parseInt(localStorage.getItem('ludo_color')||'0');
