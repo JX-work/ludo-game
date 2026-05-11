@@ -142,6 +142,13 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .dice.disabled{opacity:0.35;cursor:not-allowed}
 .dice.rolling{animation:diceRoll 0.5s ease}
 @keyframes diceRoll{0%{transform:rotate(0)}25%{transform:rotate(-20deg) scale(1.1)}75%{transform:rotate(15deg) scale(1.15)}100%{transform:rotate(0) scale(1)}}
+.dice.my-turn{animation:diceRing 1.2s ease-in-out infinite}
+@keyframes diceRing{0%,100%{box-shadow:0 0 0 0 rgba(255,213,102,0.8),0 4px 16px rgba(0,0,0,0.4)}50%{box-shadow:0 0 0 14px rgba(255,213,102,0),0 4px 16px rgba(0,0,0,0.4)}}
+.eat-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(230,57,70,0.92);color:#fff;font-family:'Fredoka One',cursive;
+  font-size:22px;padding:12px 28px;border-radius:20px;z-index:600;
+  animation:eatPopIn 1.5s ease forwards;pointer-events:none;white-space:nowrap}
+@keyframes eatPopIn{0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(0.8)}}
 
 /* PLAYERS PANEL */
 .players-panel{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;max-width:500px}
@@ -584,6 +591,12 @@ function animatePieceJump(px, py) {
   setTimeout(() => el.remove(), 520);
 }
 
+function showEatPopup(){
+  const el=document.createElement('div');
+  el.className='eat-popup';el.textContent='💥 吃子了！';
+  document.body.appendChild(el);setTimeout(()=>el.remove(),1500);
+}
+
 // 吃子特效：惊吓三眼仔 + 被吃棋子上的惊跳
 function alienEatEffect(victimScreenX, victimScreenY) {
   // 被吃棋子上的惊跳三眼仔
@@ -937,8 +950,7 @@ function drawBoard(state) {
     h += `<rect x="${b.c*C+C*0.35}" y="${b.r*C+C*0.35}" width="${5.3*C}" height="${5.3*C}" fill="${P_LIGHT[b.pi]}" rx="8"/>`;
     // 4个棋子槽
     BASE_POS[b.pi].forEach(([dr,dc]) => {
-      const cx=(b.c+dc)*C, cy=(b.r+dr)*C;
-      h += `<circle cx="${cx}" cy="${cy}" r="${C*0.55}" fill="${P_COLORS[b.pi]}" stroke="white" stroke-width="2" opacity="0.45"/>`;
+      h += `<circle cx="${dc*C}" cy="${dr*C}" r="${C*0.55}" fill="${P_COLORS[b.pi]}" stroke="white" stroke-width="2" opacity="0.45"/>`;
     });
   });
 
@@ -1014,11 +1026,8 @@ function drawBoard(state) {
         return;
       }
       if(pc.pos === -1) {
-        // 基地
-        const BASES2 = [{r:0,c:0},{r:0,c:9},{r:9,c:9},{r:9,c:0}];
-        const b = BASES2[pc.player];
         const [dr,dc] = BASE_POS[pc.player][pc.idx];
-        h += drawPieceSVG((b.c+dc)*C, (b.r+dr)*C, pc, state, false);
+        h += drawPieceSVG(dc*C, dr*C, pc, state, false);
         return;
       }
       if(pc.pos >= 0 && pc.pos < DISPLAY_PATH.length) {
@@ -1050,11 +1059,17 @@ function drawPieceSVG(cx, cy, pc, state, onBoard) {
   const col = P_COLORS[pc.player];
   const isTurn = state.currentPlayer === pc.player && state.phase === 'move';
   const movable = isTurn && canMove(pc, state.diceVal, state);
+  const threatened = onBoard && isUnderThreat(pc, state);
   const pulse = movable ? `<animate attributeName="r" values="${r};${r*1.3};${r}" dur="0.7s" repeatCount="indefinite"/>` : '';
-  const glow = movable ? `style="filter:drop-shadow(0 0 6px ${col})"` : '';
+  const glow = movable ? `style="filter:drop-shadow(0 0 6px ${col})"` :
+               threatened ? `style="filter:drop-shadow(0 0 5px #ff4757)"` : '';
+  const strokeCol = threatened ? '#ff4757' : 'white';
+  const strokeW = threatened ? 2.5 : 1.8;
+  const warn = threatened ? `<text x="${cx+r*0.95}" y="${cy-r*0.6}" font-size="${r*0.95}" fill="#ff4757">⚠️</text>` : '';
   return `<g data-pc="${pc.player},${pc.idx}" ${glow} style="cursor:${movable?'pointer':'default'}">
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}" stroke="white" stroke-width="1.8">${pulse}</circle>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}" stroke="${strokeCol}" stroke-width="${strokeW}">${pulse}</circle>
     <text x="${cx}" y="${cy+r*0.38}" text-anchor="middle" font-size="${r*1.1}" font-weight="800" fill="white">${pc.idx+1}</text>
+    ${warn}
   </g>`;
 }
 
@@ -1084,6 +1099,18 @@ function canMove(pc, dice, state) {
   if(pc.pos === -1) return dice === 6;
   const np = nextPos(pc, dice);
   return np !== null;
+}
+
+function isUnderThreat(pc, state) {
+  if(pc.pos<0||pc.finished||SAFE_IDX.includes(pc.pos)) return false;
+  for(const other of state.pieces){
+    if(other.player===pc.player||other.pos<0||other.finished) continue;
+    for(let d=1;d<=3;d++){
+      const res=nextPos(other,d);
+      if(res&&!res.home&&res.pos===pc.pos) return true;
+    }
+  }
+  return false;
 }
 
 function nextPos(pc, dice) {
@@ -1148,7 +1175,7 @@ async function doMove(pi, ki) {
           alienEatEffect(sc.x, sc.y);
         }
         other.pos = -1; other.homePos = -1;
-        sndEat();
+        sndEat(); showEatPopup();
         log(`${P_NAMES[pi]} 吃掉了 ${P_NAMES[other.player]} 的棋子！💥 送回基地`);
       } else {
         // 安全格特效
@@ -1210,7 +1237,7 @@ const DICE_F = ['','⚀','⚁','⚂','⚃','⚄','⚅'];
 
 function rollDice() {
   if(!gs||gs.phase!=='roll') return;
-  if(gameMode==='online'&&gs.currentPlayer!==myPlayerIdx) { toast('还没轮到你！'); return; }
+  if(gameMode==='online'&&gs.currentPlayer!==myPlayerIdx) return;
   const el = document.getElementById('dice-face');
   el.classList.add('rolling','disabled');
   sndDice();
@@ -1241,7 +1268,7 @@ function onRolled(v) {
 
   if(movable.length===0) {
     log(`${P_NAMES[cur]} 掷了 ${v}，无子可动`);
-    document.getElementById('move-hint').textContent='无子可动，自动跳过';
+    document.getElementById('move-hint').textContent='😅 没有可动的棋子，自动跳过';
     setTimeout(()=>{
       if(v===6) { gs.phase='roll'; gs.diceVal=null; gs.extraRoll=false; log(`${P_NAMES[cur]} 掷到6，再掷一次！`); }
       else { gs.currentPlayer=(gs.currentPlayer+1)%numPlayers; gs.phase='roll'; gs.diceVal=null; }
@@ -1287,13 +1314,37 @@ function handlePieceClick(pi,ki) {
 function updateUI() {
   if(!gs) return;
   const cur=gs.currentPlayer;
+  const isMe=(gameMode==='local')||(cur===myPlayerIdx);
   document.getElementById('turn-info').textContent=`${P_NAMES[cur]} 的回合`;
   document.getElementById('turn-info').style.color=P_COLORS[cur];
   document.getElementById('turn-banner').textContent=gs.phase==='roll'?`🎲 ${P_NAMES[cur]} 掷骰子`:`🎯 ${P_NAMES[cur]} 选棋子移动`;
   document.getElementById('turn-banner').style.color=P_COLORS[cur];
   const dice=document.getElementById('dice-face');
-  const isMe=(gameMode==='local')||(cur===myPlayerIdx);
   dice.classList.toggle('disabled',!isMe||gs.phase!=='roll');
+  dice.classList.toggle('my-turn', isMe && gs.phase==='roll');
+  if(gs.phase==='roll') dice.textContent='🎲'; // reset between turns
+
+  const mh=document.getElementById('move-hint');
+  if(mh){
+    if(gs.phase==='roll'){
+      if(isMe){ mh.textContent='👆 现在轮到你！点击骰子'; mh.style.color=P_COLORS[cur]; }
+      else { mh.textContent='⏳ 等待对方操作...'; mh.style.color='var(--text-dim)'; }
+    } else if(gs.phase==='move' && isMe){
+      const myPcs=gs.pieces.filter(p=>p.player===cur&&canMove(p,gs.diceVal,gs));
+      const hasInBase=myPcs.some(p=>p.pos===-1);
+      if(gs.diceVal===6&&hasInBase){
+        mh.textContent='🎉 掷到6！点击基地里的棋子出发'; mh.style.color='#ffd166';
+      } else {
+        const canCapture=myPcs.some(p=>{
+          if(p.pos<0) return false;
+          const res=nextPos(p,gs.diceVal);
+          return res&&!res.home&&gs.pieces.some(o=>o.player!==cur&&o.pos===res.pos&&!o.finished&&!SAFE_IDX.includes(res.pos));
+        });
+        if(canCapture){ mh.textContent='⚠️ 可以吃掉对方棋子！'; mh.style.color='#ff9f43'; }
+        else { mh.textContent='👆 点击你的棋子移动'; mh.style.color='#06d6a0'; }
+      }
+    }
+  }
   renderPanel();
 }
 
