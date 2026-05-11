@@ -368,7 +368,6 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 <div id="screen-lobby" class="screen">
   <div class="section-header">
     <div class="section-title">🛸 游戏大厅</div>
-    <button class="btn-primary btn-sm" onclick="openCreateRoom()">+ 创建房间</button>
   </div>
   <div style="display:flex;gap:8px;padding:0 0 0.5rem">
     <input id="join-code-input" class="input-field" type="text" placeholder="输入房间码加入..." maxlength="8" style="flex:1;font-size:13px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
@@ -408,7 +407,6 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
     </div>
   </div>
   <div id="players-panel" class="players-panel"></div>
-  <div class="game-log" id="game-log"><div class="log-entry">游戏日志</div></div>
   <button class="btn-ghost btn-sm" onclick="leaveGame()" style="align-self:center">离开游戏</button>
 </div>
 
@@ -423,13 +421,6 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
       <input id="nick-input" class="input-field" type="text" placeholder="输入昵称..." maxlength="12"></div>
     <div class="form-group"><label class="form-label">选择角色</label>
       <div class="avatar-grid" id="avatar-grid"></div></div>
-    <div class="form-group"><label class="form-label">选择颜色</label>
-      <div class="color-opts">
-        <div class="color-opt" style="background:#e63946" onclick="selColor(0)"></div>
-        <div class="color-opt" style="background:#2b7fd4" onclick="selColor(1)"></div>
-        <div class="color-opt" style="background:#06d6a0" onclick="selColor(2)"></div>
-        <div class="color-opt" style="background:#ffd166" onclick="selColor(3)"></div>
-      </div></div>
     <div id="setup-mode-opts" class="form-group"></div>
     <div class="modal-btns">
       <button class="btn-primary" onclick="confirmSetup()" style="flex:1">出发！</button>
@@ -517,13 +508,19 @@ const IMG_SCARED = IMG_MINE;
 const IMG_CHEER  = IMG_HERO;
 const IMG_FACE   = IMG_MODAL;
 
-// 初始化四角守护三眼仔
+// 初始化四角守护三眼仔（只显示已加入玩家的角色）
 function initGuardians() {
-  // 用8个角色轮流守护4个角
-  const guardIds = ['guardian-0','guardian-1','guardian-2','guardian-3'];
-  guardIds.forEach((id, i) => {
+  const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
+  ['guardian-0','guardian-1','guardian-2','guardian-3'].forEach((id, i) => {
     const el = document.getElementById(id);
-    if(el && ALIENS[i]) el.src = ALIENS[i%ALIENS.length].src;
+    if(!el) return;
+    if(i < pd.length && pd[i]) {
+      el.src = pd[i].src || ALIENS[i%ALIENS.length]?.src || '';
+      el.style.display = '';
+    } else {
+      el.src = '';
+      el.style.display = 'none';
+    }
   });
 }
 
@@ -1321,7 +1318,6 @@ function renderPanel() {
 function log(msg) {
   if(!gs) return;
   gs.log=[msg,...(gs.log||[])].slice(0,10);
-  document.getElementById('game-log').innerHTML=gs.log.map(l=>`<div class="log-entry">${l}</div>`).join('');
 }
 
 // ============================================================
@@ -1330,7 +1326,7 @@ function log(msg) {
 function openSetup(mode) {
   setupTarget=mode;
   document.getElementById('nick-input').value=myNick;
-  renderAvatarGrid(); renderColorOpts();
+  renderAvatarGrid();
   const mOpts=document.getElementById('setup-mode-opts');
   mOpts.innerHTML = mode==='local' ? `<label class="form-label">本地玩家人数</label>
     <select id="local-np" class="select-field">
@@ -1346,10 +1342,6 @@ function renderAvatarGrid(){
     </div>`).join('');
 }
 function selAvatar(id){myAvatarId=id;localStorage.setItem('ludo_avatar',id);renderAvatarGrid();}
-function renderColorOpts(){
-  document.querySelectorAll('.color-opt').forEach((el,i)=>el.classList.toggle('selected',i===myColorIdx));
-}
-function selColor(i){myColorIdx=i;localStorage.setItem('ludo_color',i);renderColorOpts();}
 
 function confirmSetup(){
   const nick=document.getElementById('nick-input').value.trim();
@@ -1606,13 +1598,17 @@ function handleRemoteAction(action){
 // UTILS
 // ============================================================
 async function leaveGame(){
-  // 断开联机
   if(rtChannel && sb){ sb.removeChannel(rtChannel); rtChannel=null; }
   if(gameMode==='online' && sb && currentRoomId){
-    await sb.from('ludo_players').delete().eq('id',myPlayerId).eq('room_id',currentRoomId);
+    if(isHost){
+      await sb.from('ludo_players').delete().eq('room_id',currentRoomId);
+      await sb.from('ludo_rooms').delete().eq('id',currentRoomId);
+    } else {
+      await sb.from('ludo_players').delete().eq('id',myPlayerId).eq('room_id',currentRoomId);
+    }
     currentRoomId=null;
   }
-  gs=null; gameMode='local';
+  gs=null; gameMode='local'; isHost=false;
   const waitDiv=document.getElementById('online-wait');
   if(waitDiv) waitDiv.style.display='none';
   document.getElementById('end-overlay').classList.add('hidden');
