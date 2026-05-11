@@ -102,8 +102,12 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .section-title{font-family:'Fredoka One',cursive;font-size:18px;color:var(--yellow)}
 .rooms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
 .room-card{background:rgba(6,17,46,0.85);border:1px solid rgba(43,127,212,0.18);
-  border-radius:var(--radius);padding:1rem;cursor:pointer;transition:all 0.2s}
+  border-radius:var(--radius);padding:1rem;cursor:pointer;transition:all 0.2s;position:relative}
 .room-card:hover{border-color:rgba(43,127,212,0.45);transform:translateY(-2px)}
+.room-del-btn{position:absolute;top:6px;right:6px;background:rgba(230,57,70,0.75);color:#fff;
+  border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.room-del-btn:hover{background:#e63946}
 .room-name{font-size:14px;font-weight:800}
 .badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:rgba(43,127,212,0.2);color:#6db8ff}
 .room-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
@@ -1382,14 +1386,33 @@ async function loadRooms(){
   const g=document.getElementById('rooms-grid');
   g.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-dim)">扫描中... <span class="spinner"></span></div>';
   if(!sb){g.innerHTML=demoRooms();return;}
-  const {data,error}=await sb.from('ludo_rooms').select('*').eq('status','waiting').order('created_at',{ascending:false}).limit(10);
-  if(error||!data||!data.length){g.innerHTML=demoRooms();return;}
-  const cards=data.map(r=>`<div class="room-card" onclick="joinOnlineRoom('${r.id}')">
-    <div class="room-card-head"><span class="room-name">${esc(r.name)}</span><span class="badge">等待中</span></div>
-    <div class="room-meta">${r.max_players}人对战</div>
-  </div>`).join('');
-  g.innerHTML=(cards||'<div style="text-align:center;padding:2rem;color:var(--text-dim)">暂无房间</div>')+
-    '<div class="create-card" onclick="openCreateRoom()">＋ 创建新房间</div>';
+  const {data,error}=await sb.from('ludo_rooms').select('*,ludo_players(id)').eq('status','waiting').order('created_at',{ascending:false}).limit(20);
+  if(error||!data){g.innerHTML=demoRooms();return;}
+  // Auto-delete orphaned rooms (host left without cleaning up)
+  const orphans=data.filter(r=>!r.ludo_players||r.ludo_players.length===0);
+  orphans.forEach(r=>sb.from('ludo_rooms').delete().eq('id',r.id).then(()=>{}));
+  const live=data.filter(r=>r.ludo_players&&r.ludo_players.length>0);
+  const createCard='<div class="create-card" onclick="openCreateRoom()">＋ 创建新房间</div>';
+  if(!live.length){g.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-dim)">暂无房间</div>'+createCard;return;}
+  const cards=live.map(r=>{
+    const mine=r.host_id===myPlayerId;
+    const delBtn=mine?`<button class="room-del-btn" onclick="event.stopPropagation();deleteRoom('${r.id}')" title="删除房间">✕</button>`:'';
+    return `<div class="room-card" onclick="joinOnlineRoom('${r.id}')">
+      ${delBtn}
+      <div class="room-card-head"><span class="room-name">${esc(r.name)}</span><span class="badge">等待中</span></div>
+      <div class="room-meta">${r.max_players}人对战 · ${r.ludo_players.length}人已加入</div>
+    </div>`;
+  }).join('');
+  g.innerHTML=cards+createCard;
+}
+async function deleteRoom(rid){
+  if(!sb){toast('Supabase未连接');return;}
+  const {error:e1}=await sb.from('ludo_players').delete().eq('room_id',rid);
+  if(e1){toast('删除失败：'+e1.message);return;}
+  const {error:e2}=await sb.from('ludo_rooms').delete().eq('id',rid);
+  if(e2){toast('删除失败：'+e2.message);return;}
+  toast('房间已删除');
+  loadRooms();
 }
 function demoRooms(){
   return `<div class="room-card" onclick="toast('使用本地对战模式体验游戏')">
