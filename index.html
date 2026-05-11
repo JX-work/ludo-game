@@ -370,6 +370,10 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
     <div class="section-title">🛸 游戏大厅</div>
     <button class="btn-primary btn-sm" onclick="openCreateRoom()">+ 创建房间</button>
   </div>
+  <div style="display:flex;gap:8px;padding:0 0 0.5rem">
+    <input id="join-code-input" class="input-field" type="text" placeholder="输入房间码加入..." maxlength="8" style="flex:1;font-size:13px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+    <button class="btn-primary btn-sm" onclick="joinByCode()">加入</button>
+  </div>
   <div id="rooms-grid" class="rooms-grid"><div style="text-align:center;padding:2rem;color:var(--text-dim)">扫描中... <span class="spinner"></span></div></div>
 </div>
 
@@ -381,7 +385,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
     <button class="copy-btn" onclick="copyCode()">复制链接</button>
   </div>
   <div id="turn-banner" style="text-align:center;padding:0.4rem;font-family:'Fredoka One',cursive;font-size:16px;color:var(--yellow)">等待开始...</div>
-  <div class="board-area">
+  <div id="board-wrap" class="board-area">
     <div class="board-container" style="position:relative">
       <!-- 四角守护三眼仔 -->
       <img id="guardian-0" class="corner-guardian" style="top:-20px;left:-20px;transform:scaleX(-1)" src="" alt="">
@@ -1377,6 +1381,11 @@ function startLocal(np) {
 // LOBBY
 // ============================================================
 function goLobby(){if(!myNick){openSetup('online');return;}showScreen('lobby');loadRooms();}
+async function joinByCode(){
+  const code=(document.getElementById('join-code-input').value.trim()).toLowerCase();
+  if(!code){toast('请输入房间码');return;}
+  await joinOnlineRoom(code);
+}
 async function loadRooms(){
   const g=document.getElementById('rooms-grid');
   g.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-dim)">扫描中... <span class="spinner"></span></div>';
@@ -1539,7 +1548,8 @@ function subscribeRoom(rid){
       if(room.status==='playing'){
         const waitDiv=document.getElementById('online-wait');
         if(waitDiv) waitDiv.style.display='none';
-        document.getElementById('board-wrap').style.display='flex';
+        const bw=document.getElementById('board-wrap');
+        if(bw) bw.style.display='flex';
         if(room.game_state){
           gs=room.game_state; numPlayers=gs.players;
           sb.from('ludo_players').select('*').eq('room_id',rid).order('player_idx').then(({data})=>{
@@ -1564,16 +1574,18 @@ function subscribeRoom(rid){
 }
 
 function handleRemoteAction(action){
-  if(!gs) return;
   if(action.action_type==='start'){
+    if(!action.game_state) return;
     gs=action.game_state; numPlayers=gs.players;
     const waitDiv=document.getElementById('online-wait');
     if(waitDiv) waitDiv.style.display='none';
-    document.getElementById('board-wrap').style.display='flex';
+    const bw=document.getElementById('board-wrap');
+    if(bw) bw.style.display='flex';
     drawBoard(gs); updateUI(); initGuardians();
     log('游戏开始！🎲');
     return;
   }
+  if(!gs) return;
   if(action.action_type==='roll'||action.action_type==='move'){
     if(action.game_state){
       const prev=gs.currentPlayer;
@@ -1604,7 +1616,8 @@ async function leaveGame(){
   const waitDiv=document.getElementById('online-wait');
   if(waitDiv) waitDiv.style.display='none';
   document.getElementById('end-overlay').classList.add('hidden');
-  document.getElementById('board-wrap').style.display='flex';
+  const bw=document.getElementById('board-wrap');
+  if(bw) bw.style.display='flex';
   showScreen('home');
 }
 function restartGame(){document.getElementById('end-overlay').classList.add('hidden');if(gameMode==='local')startLocal(numPlayers);}
