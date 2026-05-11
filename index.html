@@ -149,6 +149,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
   font-size:22px;padding:12px 28px;border-radius:20px;z-index:600;
   animation:eatPopIn 1.5s ease forwards;pointer-events:none;white-space:nowrap}
 @keyframes eatPopIn{0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(0.8)}}
+@keyframes bannerFlash{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.7;transform:scale(1.04)}}
+.banner-pulse{animation:bannerFlash 0.9s ease-in-out infinite}
 
 /* PLAYERS PANEL */
 .players-panel{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;max-width:500px}
@@ -1238,6 +1240,7 @@ const DICE_F = ['','⚀','⚁','⚂','⚃','⚄','⚅'];
 function rollDice() {
   if(!gs||gs.phase!=='roll') return;
   if(gameMode==='online'&&gs.currentPlayer!==myPlayerIdx) return;
+  console.log('[rollDice] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
   const el = document.getElementById('dice-face');
   el.classList.add('rolling','disabled');
   sndDice();
@@ -1317,11 +1320,24 @@ function updateUI() {
   const isMe=(gameMode==='local')||(cur===myPlayerIdx);
   document.getElementById('turn-info').textContent=`${P_NAMES[cur]} 的回合`;
   document.getElementById('turn-info').style.color=P_COLORS[cur];
-  document.getElementById('turn-banner').textContent=gs.phase==='roll'?`🎲 ${P_NAMES[cur]} 掷骰子`:`🎯 ${P_NAMES[cur]} 选棋子移动`;
-  document.getElementById('turn-banner').style.color=P_COLORS[cur];
+  const banner=document.getElementById('turn-banner');
+  if(gameMode==='online' && isMe && gs.phase==='roll'){
+    banner.textContent='👆 现在轮到你！';
+    banner.style.color=P_COLORS[cur];
+    banner.classList.add('banner-pulse');
+  } else if(gameMode==='online' && !isMe){
+    banner.textContent='⏳ 等待对方操作...';
+    banner.style.color='var(--text-dim)';
+    banner.classList.remove('banner-pulse');
+  } else {
+    banner.textContent=gs.phase==='roll'?`🎲 ${P_NAMES[cur]} 掷骰子`:`🎯 ${P_NAMES[cur]} 选棋子移动`;
+    banner.style.color=P_COLORS[cur];
+    banner.classList.remove('banner-pulse');
+  }
   const dice=document.getElementById('dice-face');
-  dice.classList.toggle('disabled',!isMe||gs.phase!=='roll');
-  dice.classList.toggle('my-turn', isMe && gs.phase==='roll');
+  const canRoll = isMe && gs.phase==='roll';
+  dice.classList.toggle('disabled', !canRoll);
+  dice.classList.toggle('my-turn', canRoll);
   if(gs.phase==='roll') dice.textContent='🎲'; // reset between turns
 
   const mh=document.getElementById('move-hint');
@@ -1509,11 +1525,19 @@ async function joinOnlineRoom(rid){
     },{onConflict:'id'});
     if(pe){ toast('加入失败：'+pe.message); return; }
   }
-  currentRoomId=rid; myPlayerIdx=playerIdx; gameMode='online';
+  // Re-fetch confirmed player_idx from DB to handle race conditions
+  const {data:myRec} = await sb.from('ludo_players').select('player_idx').eq('id',myPlayerId).eq('room_id',rid).single();
+  const confirmedIdx = (myRec && myRec.player_idx != null) ? myRec.player_idx : playerIdx;
+  currentRoomId=rid; myPlayerIdx=confirmedIdx; gameMode='online';
+  localStorage.setItem('ludo_pidx_'+rid, String(confirmedIdx));
+  console.log('[join] myPlayerIdx:', confirmedIdx, 'myPlayerId:', myPlayerId.slice(-6));
   showScreen('game');
   document.getElementById('room-code-bar').style.display='flex';
   document.getElementById('room-code-val').textContent=rid.toUpperCase();
   document.getElementById('board-wrap').style.display='none';
+  // Restore player index from localStorage if available (page refresh scenario)
+  const savedIdx = localStorage.getItem('ludo_pidx_'+rid);
+  if(savedIdx !== null) myPlayerIdx = parseInt(savedIdx);
   if(room.game_state){
     gs=room.game_state; numPlayers=room.max_players;
     document.getElementById('board-wrap').style.display='flex';
@@ -1590,6 +1614,12 @@ async function hostStartGame(){
   localStorage.setItem('ludo_players',JSON.stringify(pd));
   const {error} = await sb.from('ludo_rooms').update({status:'playing',game_state:gs}).eq('id',currentRoomId);
   if(error){ toast('开始失败：'+error.message); return; }
+  // Show board immediately for host (don't rely solely on realtime)
+  const waitDiv=document.getElementById('online-wait');
+  if(waitDiv) waitDiv.style.display='none';
+  const bw=document.getElementById('board-wrap');
+  if(bw) bw.style.display='flex';
+  drawBoard(gs); updateUI(); initGuardians();
   await sb.from('ludo_actions').insert({
     room_id:currentRoomId, player_id:myPlayerId,
     action_type:'start', game_state:gs
@@ -1634,12 +1664,17 @@ function subscribeRoom(rid){
       }
     })
     .subscribe((status,err)=>{
-      if(status==='SUBSCRIBED') console.log('✅ Room subscribed:',rid);
-      if(status==='CHANNEL_ERROR') console.error('❌ Channel error:',err);
+      console.log('🔌 realtime status:', status, err||'');
+      if(status==='SUBSCRIBED') console.log('✅ Room subscribed:', rid);
+      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+        console.error('❌ Channel error, retrying in 3s:', err);
+        setTimeout(()=>{ if(currentRoomId===rid) subscribeRoom(rid); }, 3000);
+      }
     });
 }
 
 function handleRemoteAction(action){
+  console.log('[remote]', action.action_type, 'from:', action.player_id?.slice(-6), 'has_gs:', !!action.game_state);
   if(action.action_type==='start'){
     if(!action.game_state) return;
     gs=action.game_state; numPlayers=gs.players;
@@ -1648,23 +1683,21 @@ function handleRemoteAction(action){
     const bw=document.getElementById('board-wrap');
     if(bw) bw.style.display='flex';
     drawBoard(gs); updateUI(); initGuardians();
-    log('游戏开始！🎲');
     return;
   }
-  if(!gs) return;
+  if(!action.game_state) return;
   if(action.action_type==='roll'||action.action_type==='move'){
-    if(action.game_state){
-      const prev=gs.currentPlayer;
-      gs=action.game_state; numPlayers=gs.players;
-      if(action.action_type==='roll'){
-        const el=document.getElementById('dice-face');
-        if(el) el.textContent=['','⚀','⚁','⚂','⚃','⚄','⚅'][action.dice_val]||'🎲';
-        document.getElementById('dice-result').textContent=P_NAMES[prev]+' 掷了 '+action.dice_val+' 点';
-        sndDice();
-      }
-      if(action.action_type==='move') sndMove();
-      drawBoard(gs); updateUI();
+    const prev = gs ? gs.currentPlayer : 0;
+    gs=action.game_state; numPlayers=gs.players;
+    if(action.action_type==='roll'){
+      const el=document.getElementById('dice-face');
+      if(el) el.textContent=['','⚀','⚁','⚂','⚃','⚄','⚅'][action.dice_val]||'🎲';
+      const dr=document.getElementById('dice-result');
+      if(dr) dr.textContent=P_NAMES[prev]+' 掷了 '+action.dice_val+' 点';
+      sndDice();
     }
+    if(action.action_type==='move') sndMove();
+    drawBoard(gs); updateUI();
   }
 }
 
