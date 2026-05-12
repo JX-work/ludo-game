@@ -1239,7 +1239,7 @@ const DICE_F = ['','⚀','⚁','⚂','⚃','⚄','⚅'];
 
 function rollDice() {
   if(!gs||gs.phase!=='roll') return;
-  if(gameMode==='online'&&gs.currentPlayer!==myPlayerIdx) return;
+  if(gameMode==='online'&&Number(gs.currentPlayer)!==Number(myPlayerIdx)) return;
   console.log('[rollDice] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
   const el = document.getElementById('dice-face');
   el.classList.add('rolling','disabled');
@@ -1309,55 +1309,70 @@ function onRolled(v) {
 }
 
 function handlePieceClick(pi,ki) {
-  if(!gs||gs.phase!=='move'||gs.currentPlayer!==pi) return;
-  if(gameMode==='online'&&pi!==myPlayerIdx) return;
+  if(!gs||gs.phase!=='move'||Number(gs.currentPlayer)!==Number(pi)) return;
+  if(gameMode==='online'&&Number(pi)!==Number(myPlayerIdx)) return;
   doMove(pi,ki);
 }
 
 function updateUI() {
   if(!gs) return;
-  const cur=gs.currentPlayer;
-  const isMe=(gameMode==='local')||(cur===myPlayerIdx);
+  const cur = Number(gs.currentPlayer);           // coerce — JSONB can return strings
+  const myIdx = Number(myPlayerIdx);
+  const isMyTurn = (gameMode === 'local') || (cur === myIdx);
+  console.log('[updateUI] myIdx:', myIdx, 'currentPlayer:', cur, 'isMyTurn:', isMyTurn, 'phase:', gs.phase, 'mode:', gameMode);
+
   document.getElementById('turn-info').textContent=`${P_NAMES[cur]} 的回合`;
   document.getElementById('turn-info').style.color=P_COLORS[cur];
+
   const banner=document.getElementById('turn-banner');
-  if(gameMode==='online' && isMe && gs.phase==='roll'){
-    banner.textContent='👆 现在轮到你！';
-    banner.style.color=P_COLORS[cur];
-    banner.classList.add('banner-pulse');
-  } else if(gameMode==='online' && !isMe){
-    banner.textContent='⏳ 等待对方操作...';
-    banner.style.color='var(--text-dim)';
-    banner.classList.remove('banner-pulse');
+  if(gameMode==='online'){
+    if(isMyTurn && gs.phase==='roll'){
+      banner.textContent='👆 现在轮到你！';
+      banner.style.color=P_COLORS[cur];
+      banner.classList.add('banner-pulse');
+    } else if(isMyTurn && gs.phase==='move'){
+      banner.textContent=`🎯 选一颗棋子移动`;
+      banner.style.color=P_COLORS[cur];
+      banner.classList.remove('banner-pulse');
+    } else {
+      banner.textContent='⏳ 等待对方操作...';
+      banner.style.color='var(--text-dim)';
+      banner.classList.remove('banner-pulse');
+    }
   } else {
     banner.textContent=gs.phase==='roll'?`🎲 ${P_NAMES[cur]} 掷骰子`:`🎯 ${P_NAMES[cur]} 选棋子移动`;
     banner.style.color=P_COLORS[cur];
     banner.classList.remove('banner-pulse');
   }
+
   const dice=document.getElementById('dice-face');
-  const canRoll = isMe && gs.phase==='roll';
+  const canRoll = isMyTurn && gs.phase==='roll';
   dice.classList.toggle('disabled', !canRoll);
   dice.classList.toggle('my-turn', canRoll);
-  if(gs.phase==='roll') dice.textContent='🎲'; // reset between turns
+  if(gs.phase==='roll') dice.textContent='🎲';
 
   const mh=document.getElementById('move-hint');
   if(mh){
     if(gs.phase==='roll'){
-      if(isMe){ mh.textContent='👆 现在轮到你！点击骰子'; mh.style.color=P_COLORS[cur]; }
+      if(isMyTurn){ mh.textContent='👆 现在轮到你！点击骰子'; mh.style.color=P_COLORS[cur]; }
       else { mh.textContent='⏳ 等待对方操作...'; mh.style.color='var(--text-dim)'; }
-    } else if(gs.phase==='move' && isMe){
-      const myPcs=gs.pieces.filter(p=>p.player===cur&&canMove(p,gs.diceVal,gs));
-      const hasInBase=myPcs.some(p=>p.pos===-1);
-      if(gs.diceVal===6&&hasInBase){
-        mh.textContent='🎉 掷到6！点击基地里的棋子出发'; mh.style.color='#ffd166';
+    } else if(gs.phase==='move'){
+      if(isMyTurn){
+        const myPcs=gs.pieces.filter(p=>Number(p.player)===cur&&canMove(p,gs.diceVal,gs));
+        const hasInBase=myPcs.some(p=>p.pos===-1);
+        if(gs.diceVal===6&&hasInBase){
+          mh.textContent='🎉 掷到6！点击基地里的棋子出发'; mh.style.color='#ffd166';
+        } else {
+          const canCapture=myPcs.some(p=>{
+            if(p.pos<0) return false;
+            const res=nextPos(p,gs.diceVal);
+            return res&&!res.home&&gs.pieces.some(o=>Number(o.player)!==cur&&o.pos===res.pos&&!o.finished&&!SAFE_IDX.includes(res.pos));
+          });
+          if(canCapture){ mh.textContent='⚠️ 可以吃掉对方棋子！'; mh.style.color='#ff9f43'; }
+          else { mh.textContent='👆 点击你的棋子移动'; mh.style.color='#06d6a0'; }
+        }
       } else {
-        const canCapture=myPcs.some(p=>{
-          if(p.pos<0) return false;
-          const res=nextPos(p,gs.diceVal);
-          return res&&!res.home&&gs.pieces.some(o=>o.player!==cur&&o.pos===res.pos&&!o.finished&&!SAFE_IDX.includes(res.pos));
-        });
-        if(canCapture){ mh.textContent='⚠️ 可以吃掉对方棋子！'; mh.style.color='#ff9f43'; }
-        else { mh.textContent='👆 点击你的棋子移动'; mh.style.color='#06d6a0'; }
+        mh.textContent='⏳ 等待对方操作...'; mh.style.color='var(--text-dim)';
       }
     }
   }
@@ -1677,18 +1692,19 @@ function handleRemoteAction(action){
   console.log('[remote]', action.action_type, 'from:', action.player_id?.slice(-6), 'has_gs:', !!action.game_state);
   if(action.action_type==='start'){
     if(!action.game_state) return;
-    gs=action.game_state; numPlayers=gs.players;
+    gs=action.game_state; numPlayers=Number(gs.players);
     const waitDiv=document.getElementById('online-wait');
     if(waitDiv) waitDiv.style.display='none';
     const bw=document.getElementById('board-wrap');
     if(bw) bw.style.display='flex';
+    console.log('[handleRemoteAction start] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
     drawBoard(gs); updateUI(); initGuardians();
     return;
   }
   if(!action.game_state) return;
   if(action.action_type==='roll'||action.action_type==='move'){
-    const prev = gs ? gs.currentPlayer : 0;
-    gs=action.game_state; numPlayers=gs.players;
+    const prev = gs ? Number(gs.currentPlayer) : 0;
+    gs=action.game_state; numPlayers=Number(gs.players);
     if(action.action_type==='roll'){
       const el=document.getElementById('dice-face');
       if(el) el.textContent=['','⚀','⚁','⚂','⚃','⚄','⚅'][action.dice_val]||'🎲';
@@ -1697,6 +1713,7 @@ function handleRemoteAction(action){
       sndDice();
     }
     if(action.action_type==='move') sndMove();
+    console.log('[handleRemoteAction '+action.action_type+'] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
     drawBoard(gs); updateUI();
   }
 }
