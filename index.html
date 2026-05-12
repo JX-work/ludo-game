@@ -844,16 +844,15 @@ const FINAL_PATH = (function() {
 // 结论：真正的飞行棋外圈路径必须使用专门的路径定义
 // 下面是手工验证的完整路径（15×15网格）
 const LUDO_OUTER = [
-  // 红方出发区 row8, col1→5，然后上行col6，顶部，蓝出发col8，右横，绿出发col13，底横，黄出发col7
-  {r:8,c:1},{r:8,c:2},{r:8,c:3},{r:8,c:4},{r:8,c:5},    // 0-4  红出发
-  {r:7,c:6},{r:6,c:6},{r:5,c:6},{r:4,c:6},{r:3,c:6},{r:2,c:6},{r:1,c:6}, // 5-11 左上行
-  {r:0,c:6},{r:0,c:7},{r:0,c:8},                          // 12-14 顶横
-  {r:1,c:8},{r:2,c:8},{r:3,c:8},{r:4,c:8},{r:5,c:8},    // 15-19 蓝出发
-  {r:6,c:9},{r:6,c:10},{r:6,c:11},{r:6,c:12},{r:6,c:13}, // 20-24 右横
-  {r:7,c:13},{r:8,c:13},{r:9,c:13},{r:10,c:13},{r:11,c:13},{r:12,c:13},{r:13,c:13}, // 25-31 绿出发
-  {r:14,c:13},{r:14,c:12},{r:14,c:11},{r:14,c:10},{r:14,c:9},{r:14,c:8},{r:14,c:7}, // 32-38 底横
-  {r:13,c:7},{r:12,c:7},{r:11,c:7},{r:10,c:7},{r:9,c:7},{r:8,c:7},{r:7,c:7}, // 39-45 黄出发
-  {r:7,c:6},{r:7,c:5},{r:7,c:4},{r:7,c:3},{r:7,c:2},{r:7,c:1}, // 46-51 左横
+  {r:8,c:1},{r:8,c:2},{r:8,c:3},{r:8,c:4},{r:8,c:5},
+  {r:7,c:6},{r:6,c:6},{r:5,c:6},{r:4,c:6},{r:3,c:6},{r:2,c:6},{r:1,c:6},
+  {r:0,c:6},{r:0,c:7},{r:0,c:8},
+  {r:1,c:8},{r:2,c:8},{r:3,c:8},{r:4,c:8},{r:5,c:8},
+  {r:6,c:9},{r:6,c:10},{r:6,c:11},{r:6,c:12},{r:6,c:13},
+  {r:7,c:13},{r:8,c:13},{r:9,c:13},{r:10,c:13},{r:11,c:13},{r:12,c:13},{r:13,c:13},
+  {r:14,c:13},{r:14,c:12},{r:14,c:11},{r:14,c:10},{r:14,c:9},{r:14,c:8},{r:14,c:7},
+  {r:13,c:7},{r:12,c:7},{r:11,c:7},{r:10,c:7},{r:9,c:7},{r:8,c:7},{r:7,c:7},
+  {r:7,c:6},{r:7,c:5},{r:7,c:4},{r:7,c:3},{r:7,c:2},{r:7,c:1},
 ];
 // 验证：52格 ✓ (0-51)
 
@@ -903,13 +902,9 @@ const BASE_POS = [
 
 // 终点道坐标（显示用）
 const HOME_DISPLAY = [
-  // 红(0)终点道: row8→4, col7 向上走向中心
   [{r:8,c:7},{r:7,c:7},{r:6,c:7},{r:5,c:7},{r:4,c:7}],
-  // 蓝(1)终点道: row7, col8→12 向右走向中心
   [{r:7,c:8},{r:7,c:9},{r:7,c:10},{r:7,c:11},{r:7,c:12}],
-  // 绿(2)终点道: row6→10, col7 向下走向中心
   [{r:6,c:7},{r:7,c:7},{r:8,c:7},{r:9,c:7},{r:10,c:7}],
-  // 黄(3)终点道: row7, col6→2 向左走向中心
   [{r:7,c:6},{r:7,c:5},{r:7,c:4},{r:7,c:3},{r:7,c:2}],
 ];
 
@@ -921,127 +916,134 @@ const SAFE_IDX = [0, 8, 13, 21, 26, 34, 39, 47];
 // ============================================================
 function drawBoard(state) {
   const svg = document.getElementById('ludo-board');
+  const C = 40; // cell size
+  // 棋盘总宽高: 11*40=440 主区 + 左右各4*40=160 → 总760x760? 
+  // 用简化版: 15x15格 = 600x600
+  const S = 600;
   let h = '';
 
-  // 背景
-  h += `<rect width="${S}" height="${S}" fill="#0d1b3e" rx="12"/>`;
+  h += `<rect width="${S}" height="${S}" fill="#1a1a2e" rx="12"/>`;
 
-  // 15x15基础网格
-  for(let r=0;r<15;r++) for(let c=0;c<15;c++) {
-    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="rgba(255,255,255,0.03)" rx="1"/>`;
-  }
+  // 颜色定义
+  const PC = ['#e63946','#2b7fd4','#06d6a0','#ffd166'];
+  const PL = ['#ffc8cc','#b3d4f5','#b3f0e0','#fff0b3'];
+  const PD = ['#c1121f','#1a5fa8','#04a87a','#e6b800'];
 
-  // 四个角落基地（6x6格）
-  const BASES = [
-    {r:0,c:0,pi:0},{r:0,c:9,pi:1},
-    {r:9,c:9,pi:2},{r:9,c:0,pi:3}
+  // === 四个角落基地 (各6x6格) ===
+  const bases = [
+    {x:0,   y:0,   pi:0}, // 红 左上
+    {x:9*C, y:0,   pi:1}, // 蓝 右上
+    {x:9*C, y:9*C, pi:2}, // 绿 右下
+    {x:0,   y:9*C, pi:3}, // 黄 左下
   ];
-  BASES.forEach(b => {
-    h += `<rect x="${b.c*C}" y="${b.r*C}" width="${6*C}" height="${6*C}" fill="${P_COLORS[b.pi]}" rx="10" opacity="0.9"/>`;
-    h += `<rect x="${b.c*C+C*0.35}" y="${b.r*C+C*0.35}" width="${5.3*C}" height="${5.3*C}" fill="${P_LIGHT[b.pi]}" rx="8"/>`;
+  bases.forEach(b => {
+    h += `<rect x="${b.x}" y="${b.y}" width="${6*C}" height="${6*C}" fill="${PC[b.pi]}" rx="8"/>`;
+    h += `<rect x="${b.x+4}" y="${b.y+4}" width="${6*C-8}" height="${6*C-8}" fill="${PL[b.pi]}" rx="6"/>`;
     // 4个棋子槽
-    BASE_POS[b.pi].forEach(([dr,dc]) => {
-      h += `<circle cx="${dc*C}" cy="${dr*C}" r="${C*0.55}" fill="${P_COLORS[b.pi]}" stroke="white" stroke-width="2" opacity="0.45"/>`;
+    [[1.5,1.5],[1.5,4],[4,1.5],[4,4]].forEach(([dr,dc])=>{
+      h += `<circle cx="${b.x+(dc)*C}" cy="${b.y+(dr)*C}" r="${C*0.55}" fill="${PC[b.pi]}" stroke="white" stroke-width="2" opacity="0.5"/>`;
     });
+    const labels=['红方','蓝方','绿方','黄方'];
+    const lx=b.x+3*C, ly=b.y+5.7*C;
+    h += `<text x="${lx}" y="${ly}" text-anchor="middle" font-size="13" fill="${PD[b.pi]}" font-family="sans-serif" font-weight="500">${labels[b.pi]}</text>`;
   });
 
-  // 走廊格子
-  // 上走廊 col6-8, row0-5
-  for(let r=0;r<6;r++) for(let c=6;c<=8;c++) {
-    const col = (c===7) ? P_COLORS[0] : 'white';
-    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${col}" rx="3"/>`;
+  // === 十字形走廊 (3格宽) ===
+  // 上下竖廊: col6-8, row0-14 (但基地占了row0-5和row9-14的col0-5和col9-14)
+  // 左右横廊: row6-8, col0-14
+
+  // 上竖廊 col6-8, row0-8
+  for(let r=0;r<9;r++) for(let c=6;c<=8;c++) {
+    const isHome = c===7;
+    const color = isHome && r>0 ? PC[0] : 'white';
+    const op = isHome && r>0 ? '0.75' : '1';
+    h += `<rect x="${c*C}" y="${r*C}" width="${C}" height="${C}" fill="${color}" opacity="${op}" stroke="#ccc" stroke-width="0.5" rx="2"/>`;
   }
-  // 下走廊 col6-8, row9-14
-  for(let r=9;r<15;r++) for(let c=6;c<=8;c++) {
-    const col = (c===7) ? P_COLORS[2] : 'white';
-    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${col}" rx="3"/>`;
+  // 下竖廊 col6-8, row6-14
+  for(let r=6;r<15;r++) for(let c=6;c<=8;c++) {
+    if(r<=8) continue; // 已画
+    const isHome = c===7;
+    const color = isHome && r<14 ? PC[2] : 'white';
+    const op = isHome && r<14 ? '0.75' : '1';
+    h += `<rect x="${c*C}" y="${r*C}" width="${C}" height="${C}" fill="${color}" opacity="${op}" stroke="#ccc" stroke-width="0.5" rx="2"/>`;
   }
-  // 左走廊 row6-8, col0-5
-  for(let r=6;r<=8;r++) for(let c=0;c<6;c++) {
-    const col = (r===7) ? P_COLORS[3] : 'white';
-    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${col}" rx="3"/>`;
+  // 左横廊 row6-8, col0-8
+  for(let r=6;r<=8;r++) for(let c=0;c<9;c++) {
+    if(c>=6) continue;
+    const isHome = r===7;
+    const color = isHome && c>0 ? PC[3] : 'white';
+    const op = isHome && c>0 ? '0.75' : '1';
+    h += `<rect x="${c*C}" y="${r*C}" width="${C}" height="${C}" fill="${color}" opacity="${op}" stroke="#ccc" stroke-width="0.5" rx="2"/>`;
   }
-  // 右走廊 row6-8, col9-14
-  for(let r=6;r<=8;r++) for(let c=9;c<15;c++) {
-    const col = (r===7) ? P_COLORS[1] : 'white';
-    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${col}" rx="3"/>`;
+  // 右横廊 row6-8, col6-14
+  for(let r=6;r<=8;r++) for(let c=6;c<15;c++) {
+    if(c<=8) continue;
+    const isHome = r===7;
+    const color = isHome && c<14 ? PC[1] : 'white';
+    const op = isHome && c<14 ? '0.75' : '1';
+    h += `<rect x="${c*C}" y="${r*C}" width="${C}" height="${C}" fill="${color}" opacity="${op}" stroke="#ccc" stroke-width="0.5" rx="2"/>`;
   }
 
-  // 中央终点区（三角形）
+  // === 中央终点菱形 ===
   const mx=7.5*C, my=7.5*C;
-  [[0,[mx,my,6*C,6*C,mx,6*C]],[1,[mx,my,9*C,6*C,9*C,my]],[2,[mx,my,9*C,9*C,mx,9*C]],[3,[mx,my,6*C,9*C,6*C,my]]].forEach(([pi,pts])=>{
-    h += `<polygon points="${pts.join(' ')}" fill="${P_COLORS[pi]}" opacity="0.92"/>`;
-  });
-  h += `<polygon points="${mx},${6*C} ${9*C},${my} ${mx},${9*C} ${6*C},${my}" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>`;
-  h += `<text x="${mx}" y="${my+8}" text-anchor="middle" font-size="28" fill="white">👾</text>`;
+  h += `<polygon points="${mx},${6*C} ${9*C},${mx} ${mx},${9*C} ${6*C},${my}" fill="none" stroke="#999" stroke-width="1"/>`;
+  h += `<polygon points="${mx},${my} ${6*C},${6*C} ${mx},${6*C}" fill="${PC[0]}" opacity="0.9"/>`;
+  h += `<polygon points="${mx},${my} ${9*C},${6*C} ${9*C},${my}" fill="${PC[1]}" opacity="0.9"/>`;
+  h += `<polygon points="${mx},${my} ${9*C},${9*C} ${mx},${9*C}" fill="${PC[2]}" opacity="0.9"/>`;
+  h += `<polygon points="${mx},${my} ${6*C},${9*C} ${6*C},${my}" fill="${PC[3]}" opacity="0.9"/>`;
 
-  // 安全格（★）
-  SAFE_IDX.forEach((idx,i) => {
-    if(idx >= DISPLAY_PATH.length) return;
-    const {r,c} = DISPLAY_PATH[idx];
-    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="${P_COLORS[i%4]}" rx="3" opacity="0.75"/>`;
-    h += `<text x="${(c+0.5)*C}" y="${(r+0.7)*C}" text-anchor="middle" font-size="${C*0.55}" fill="white">★</text>`;
-  });
-
-  // 出发格标记
-  P_START.forEach((idx,pi) => {
-    if(idx >= DISPLAY_PATH.length) return;
-    const {r,c} = DISPLAY_PATH[idx];
-    h += `<rect x="${c*C+1}" y="${r*C+1}" width="${C-2}" height="${C-2}" fill="${P_COLORS[pi]}" rx="3" opacity="0.6"/>`;
-    h += `<text x="${(c+0.5)*C}" y="${(r+0.72)*C}" text-anchor="middle" font-size="${C*0.48}" fill="white">▶</text>`;
+  // === 安全格 ★ ===
+  // 外圈安全格位置 (row,col)
+  const safePts = [[6,2],[2,8],[8,12],[12,6]];
+  safePts.forEach(([r,c],i)=>{
+    h += `<rect x="${c*C}" y="${r*C}" width="${C}" height="${C}" fill="${PC[i]}" opacity="0.7" stroke="#ccc" stroke-width="0.5" rx="2"/>`;
+    h += `<text x="${(c+0.5)*C}" y="${(r+0.72)*C}" text-anchor="middle" font-size="18" fill="white" font-family="sans-serif">★</text>`;
   });
 
-  // 外圈路径轮廓（白色边框）
-  DISPLAY_PATH.forEach(({r,c}) => {
-    h += `<rect x="${c*C+0.5}" y="${r*C+0.5}" width="${C-1}" height="${C-1}" fill="none" stroke="rgba(43,127,212,0.3)" stroke-width="0.8" rx="2"/>`;
+  // === 出发格 ▶ ===
+  const startPts = [[8,1,0],[1,8,1],[6,13,2],[13,6,3]];
+  startPts.forEach(([r,c,pi])=>{
+    h += `<rect x="${c*C}" y="${r*C}" width="${C}" height="${C}" fill="${PC[pi]}" opacity="0.6" stroke="#ccc" stroke-width="0.5" rx="2"/>`;
+    h += `<text x="${(c+0.5)*C}" y="${(r+0.72)*C}" text-anchor="middle" font-size="16" fill="white" font-family="sans-serif">▶</text>`;
   });
 
-  // 棋子
-  if(state) {
-    // 统计同格棋子
-    const posMap = {};
-    state.pieces.forEach(pc => {
-      if(!pc.finished && pc.pos >= 0 && pc.pos < DISPLAY_PATH.length) {
-        const key = pc.pos;
-        if(!posMap[key]) posMap[key] = [];
-        posMap[key].push(pc);
+  // === 棋子 ===
+  if(state){
+    const posMap={};
+    state.pieces.forEach(pc=>{
+      if(!pc.finished && pc.pos>=0 && pc.pos<LUDO_OUTER.length){
+        if(!posMap[pc.pos]) posMap[pc.pos]=[];
+        posMap[pc.pos].push(pc);
       }
     });
-
-    state.pieces.forEach(pc => {
-      if(pc.finished) {
-        // 终点显示在中心附近
-        const cx = (7.5 + (pc.player===1?1:pc.player===3?-1:0))*C;
-        const cy = (7.5 + (pc.player===2?1:pc.player===0?-1:0))*C;
-        h += drawPieceSVG(cx + pc.idx*6-9, cy, pc, state, false);
-        return;
-      }
-      if(pc.pos === -1) {
-        const [dr,dc] = BASE_POS[pc.player][pc.idx];
-        h += drawPieceSVG(dc*C, dr*C, pc, state, false);
-        return;
-      }
-      if(pc.pos >= 0 && pc.pos < LUDO_OUTER.length) {
-        const {r,c} = LUDO_OUTER[pc.pos];
-        const stack = posMap[pc.pos] || [pc];
-        const si = stack.indexOf(pc);
-        const ox = (si - (stack.length-1)/2) * C * 0.25;
-        h += drawPieceSVG((c+0.5)*C + ox, (r+0.5)*C, pc, state, true);
+    state.pieces.forEach(pc=>{
+      if(pc.finished) return;
+      if(pc.pos===-1){
+        // 基地
+        const bDef=[{x:0,y:0},{x:9*C,y:0},{x:9*C,y:9*C},{x:0,y:9*C}][pc.player];
+        const slots=[[1.5,1.5],[1.5,4],[4,1.5],[4,4]];
+        const [dr,dc]=slots[pc.idx];
+        h+=drawPieceSVG(bDef.x+dc*C, bDef.y+dr*C, pc, state);
+      } else if(pc.pos>=0 && pc.pos<LUDO_OUTER.length){
+        const {r,c}=LUDO_OUTER[pc.pos];
+        const stack=posMap[pc.pos]||[pc];
+        const si=stack.indexOf(pc);
+        const ox=(si-(stack.length-1)/2)*C*0.25;
+        h+=drawPieceSVG((c+0.5)*C+ox,(r+0.5)*C,pc,state);
+      } else if(pc.pos===-2 && pc.homePos>=0){
+        const lane=HOME_DISPLAY[pc.player];
+        const cell=lane&&lane[Math.min(pc.homePos,lane.length-1)];
+        if(cell) h+=drawPieceSVG((cell.c+0.5)*C,(cell.r+0.5)*C,pc,state);
       }
     });
   }
 
-  // 边框
-  h += `<rect width="${S}" height="${S}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2" rx="12"/>`;
-  svg.innerHTML = h;
-
-  // 事件
-  svg.onclick = e => {
-    const g = e.target.closest('[data-pc]');
-    if(g) {
-      const [pi,ki] = g.dataset.pc.split(',').map(Number);
-      handlePieceClick(pi,ki);
-    }
+  h+=`<rect width="${S}" height="${S}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2" rx="12"/>`;
+  svg.setAttribute('viewBox',`0 0 ${S} ${S}`);
+  svg.innerHTML=h;
+  svg.onclick=e=>{
+    const g=e.target.closest('[data-pc]');
+    if(g){const[pi,ki]=g.dataset.pc.split(',').map(Number);handlePieceClick(pi,ki);}
   };
 }
 
