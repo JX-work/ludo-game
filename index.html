@@ -1262,49 +1262,49 @@ function rollDice() {
   },55);
 }
 
-function onRolled(v) {
+async function onRolled(v) {
   const cur=gs.currentPlayer;
   const myPcs=gs.pieces.filter(p=>p.player===cur&&!p.finished);
   const movable=myPcs.filter(pc=>canMove(pc,v,gs));
 
   if(v===6) { gs.extraRoll=true; }
 
+  // Helper: broadcast a deep-copy snapshot of gs
+  async function broadcastRoll() {
+    if(gameMode==='online' && sb && currentRoomId){
+      const snap = JSON.parse(JSON.stringify(gs));
+      console.log('[broadcastRoll] currentPlayer:', snap.currentPlayer, 'phase:', snap.phase);
+      const {error} = await sb.from('ludo_actions').insert({
+        room_id:currentRoomId, player_id:myPlayerId,
+        action_type:'roll', dice_val:v, game_state:snap
+      });
+      if(error) console.error('[broadcastRoll] insert error:', error.message);
+    }
+  }
+
   if(movable.length===0) {
     log(`${P_NAMES[cur]} 掷了 ${v}，无子可动`);
     document.getElementById('move-hint').textContent='😅 没有可动的棋子，自动跳过';
-    setTimeout(()=>{
-      if(v===6) { gs.phase='roll'; gs.diceVal=null; gs.extraRoll=false; log(`${P_NAMES[cur]} 掷到6，再掷一次！`); }
-      else { gs.currentPlayer=(gs.currentPlayer+1)%numPlayers; gs.phase='roll'; gs.diceVal=null; }
-      drawBoard(gs); updateUI();
-      if(gameMode==='online' && sb && currentRoomId){
-        sb.from('ludo_actions').insert({room_id:currentRoomId,player_id:myPlayerId,action_type:'roll',dice_val:v,game_state:gs});
-      }
-    },900);
+    // Wait for the skip animation, then update state and broadcast
+    await new Promise(r=>setTimeout(r,900));
+    if(v===6) { gs.phase='roll'; gs.diceVal=null; gs.extraRoll=false; }
+    else { gs.currentPlayer=(gs.currentPlayer+1)%numPlayers; gs.phase='roll'; gs.diceVal=null; }
+    drawBoard(gs); updateUI();
+    await broadcastRoll();
     return;
   }
 
   if(movable.length===1&&movable[0].pos===-1&&v===6) {
     gs.phase='move';
     document.getElementById('move-hint').textContent='棋子自动出基地！';
-    if(gameMode==='online' && sb && currentRoomId){
-      sb.from('ludo_actions').insert({room_id:currentRoomId,player_id:myPlayerId,action_type:'roll',dice_val:v,game_state:gs});
-    }
+    await broadcastRoll();
     setTimeout(()=>doMove(cur, movable[0].idx), 400);
     return;
   }
 
   gs.phase='move';
   document.getElementById('move-hint').textContent='点击你的棋子移动';
-
-  // 联机广播掷骰
-  if(gameMode==='online' && sb && currentRoomId){
-    sb.from('ludo_actions').insert({
-      room_id: currentRoomId, player_id: myPlayerId,
-      action_type: 'roll', dice_val: v,
-      game_state: gs
-    });
-  }
-
+  await broadcastRoll();
   drawBoard(gs); updateUI();
 }
 
