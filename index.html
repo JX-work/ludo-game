@@ -468,6 +468,26 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
   </div>
 </div>
 
+<!-- PATH EDITOR (visible only when URL has ?debug=path) -->
+<div id="screen-path-editor" style="display:none;position:fixed;inset:0;z-index:900;background:#06112e;overflow:auto;padding:1rem;box-sizing:border-box">
+  <div style="max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:0.75rem">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#ffd166">🗺️ 路径编辑器</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost btn-sm" onclick="pathEditorClear()">清除</button>
+        <button class="btn-primary btn-sm" onclick="pathEditorCopy()">复制全部</button>
+      </div>
+    </div>
+    <div style="position:relative;width:100%;max-width:600px;margin:0 auto">
+      <svg id="path-editor-svg" viewBox="0 0 600 600" style="width:100%;height:auto;display:block;border-radius:8px;cursor:crosshair;box-shadow:0 4px 24px rgba(0,0,0,0.5)"></svg>
+    </div>
+    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.75rem">
+      <div style="font-size:12px;font-weight:700;color:#8ecae6;margin-bottom:6px">已选坐标（<span id="path-editor-count">0</span> 个）：</div>
+      <div id="path-editor-list" style="font-family:'Space Mono',monospace;font-size:12px;color:#ffd166;line-height:1.8;word-break:break-all;min-height:36px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- END -->
 <div id="end-overlay" class="end-overlay hidden">
   <div class="end-box">
@@ -1799,15 +1819,80 @@ function toast(msg){
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // confetti 已被 alienVictoryEffect 替代
 
+// ============================================================
+// PATH EDITOR
+// ============================================================
+let _pathPoints = [];
+
+function initPathEditor() {
+  const svg = document.getElementById('path-editor-svg');
+  const GC = 20, COLS = 30;
+  let h = `<image href="./imgs/board2.jpg" x="0" y="0" width="600" height="600" preserveAspectRatio="xMidYMid meet"/>`;
+  // grid
+  for(let r = 0; r < COLS; r++) {
+    for(let c = 0; c < COLS; c++) {
+      h += `<rect id="pe_${r}_${c}" x="${c*GC}" y="${r*GC}" width="${GC}" height="${GC}" fill="rgba(0,0,0,0)" stroke="rgba(255,0,0,0.35)" stroke-width="0.5"/>`;
+      h += `<text x="${c*GC+2}" y="${r*GC+10}" font-size="6" fill="rgba(255,0,0,0.7)" font-family="sans-serif" pointer-events="none">${r},${c}</text>`;
+    }
+  }
+  svg.innerHTML = h;
+  svg.onclick = e => {
+    const rect = svg.getBoundingClientRect();
+    const scaleX = 600 / rect.width;
+    const scaleY = 600 / rect.height;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
+    const r = Math.floor(py / GC);
+    const c = Math.floor(px / GC);
+    if(r < 0 || r >= COLS || c < 0 || c >= COLS) return;
+    const key = r + ',' + c;
+    const existIdx = _pathPoints.findIndex(p => p.r === r && p.c === c);
+    if(existIdx >= 0) {
+      _pathPoints.splice(existIdx, 1);
+      const cell = document.getElementById(`pe_${r}_${c}`);
+      if(cell) cell.setAttribute('fill', 'rgba(0,0,0,0)');
+    } else {
+      _pathPoints.push({r, c});
+      const cell = document.getElementById(`pe_${r}_${c}`);
+      if(cell) cell.setAttribute('fill', 'rgba(255,200,0,0.45)');
+    }
+    pathEditorRender();
+  };
+}
+
+function pathEditorRender() {
+  document.getElementById('path-editor-count').textContent = _pathPoints.length;
+  document.getElementById('path-editor-list').textContent =
+    _pathPoints.map(p => `{r:${p.r},c:${p.c}}`).join(',\n');
+}
+
+function pathEditorClear() {
+  _pathPoints = [];
+  document.querySelectorAll('[id^="pe_"]').forEach(el => el.setAttribute('fill','rgba(0,0,0,0)'));
+  pathEditorRender();
+}
+
+function pathEditorCopy() {
+  const txt = '[' + _pathPoints.map(p => `{r:${p.r},c:${p.c}}`).join(',') + ']';
+  navigator.clipboard.writeText(txt).then(() => toast('已复制！')).catch(() => toast(txt));
+}
+
 // INIT
 drawBoard(null);
 initGuardians();
-// URL 参数：自动加入房间
-const urlRoom = new URLSearchParams(location.search).get('room');
-if(urlRoom){
-  history.replaceState({},'',location.pathname);
-  if(!myNick){ openSetup('online'); /* 设置完后会跳转 */ }
-  else { joinOnlineRoom(urlRoom); }
+// URL 参数：路径编辑器
+if(new URLSearchParams(location.search).get('debug') === 'path') {
+  document.getElementById('screen-path-editor').style.display = 'block';
+  document.getElementById('app').style.display = 'none';
+  initPathEditor();
+} else {
+  // URL 参数：自动加入房间
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  if(urlRoom){
+    history.replaceState({},'',location.pathname);
+    if(!myNick){ openSetup('online'); }
+    else { joinOnlineRoom(urlRoom); }
+  }
 }
 </script>
 </body>
