@@ -1317,7 +1317,7 @@ async function onRolled(v) {
     // Wait for the skip animation, then update state and broadcast
     await new Promise(r=>setTimeout(r,900));
     if(v===6) { gs.phase='roll'; gs.diceVal=null; gs.extraRoll=false; }
-    else { gs.currentPlayer=(gs.currentPlayer+1)%numPlayers; gs.phase='roll'; gs.diceVal=null; }
+    else { gs.currentPlayer=nextTurn(gs); gs.phase='roll'; gs.diceVal=null; }
     drawBoard(gs); updateUI();
     await broadcastRoll();
     return;
