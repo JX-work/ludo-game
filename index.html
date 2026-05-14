@@ -1053,7 +1053,6 @@ function drawPieceAvatar(cx, cy, pc, state) {
   const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
   const playerData = pd[pc.player];
   const avatarSrc = playerData ? playerData.src : '';
-  const nick = playerData ? (playerData.name || '') : '';
   const pulse = movable ? '<animate attributeName="r" values="' + r + ';' + (r*1.25) + ';' + r + '" dur="0.7s" repeatCount="indefinite"/>' : '';
   let inner = '';
   if (avatarSrc) {
@@ -1062,9 +1061,6 @@ function drawPieceAvatar(cx, cy, pc, state) {
     inner += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="2.5"/>';
   } else {
     inner += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + col + '" stroke="white" stroke-width="2.5" opacity="0.92" ' + filter + '>' + pulse + '</circle>';
-  }
-  if (nick) {
-    inner += '<text x="' + cx + '" y="' + (cy + r + 10) + '" text-anchor="middle" font-size="10" font-weight="900" fill="#fff" font-family="sans-serif" style="paint-order:stroke fill;stroke:#000;stroke-width:3px;fill:#fff;font-size:10px;text-anchor:middle">' + nick + '</text>';
   }
   return '<g data-pc="' + pc.player + ',' + pc.idx + '" style="cursor:' + (movable?'pointer':'default') + '">' + inner + '</g>';
 }
@@ -1121,12 +1117,18 @@ let currentRoomId = null;
 let isHost = false;
 let rtChannel = null;
 
-function newGame(np) {
+function newGame(activePlayers) {
   const pieces = [];
-  for(let p=0;p<np;p++) for(let k=0;k<4;k++) {
+  for(let p of activePlayers) for(let k=0;k<4;k++) {
     pieces.push({player:p, idx:k, pos:-1, finished:false, homePos:-1});
   }
-  return {players:np, currentPlayer:0, pieces, diceVal:null, phase:'roll', winner:null, log:[]};
+  return {activePlayers, players:activePlayers.length, currentPlayer:activePlayers[0], pieces, diceVal:null, phase:'roll', winner:null, log:[]};
+}
+
+function nextTurn(gs) {
+  const active = gs.activePlayers || [0,1,2,3];
+  const idx = active.indexOf(Number(gs.currentPlayer));
+  return active[(idx + 1) % active.length];
 }
 
 function canMove(pc, dice, state) {
@@ -1230,7 +1232,7 @@ async function doMove(pi, ki) {
   if(gs.extraRoll) {
     gs.phase='roll'; gs.extraRoll=false;
   } else {
-    gs.currentPlayer = (gs.currentPlayer+1)%numPlayers;
+    gs.currentPlayer = nextTurn(gs);
     gs.phase='roll';
   }
 
@@ -1479,11 +1481,10 @@ function confirmSetup(){
 
 function startLocal(np) {
   numPlayers=np; gameMode='local'; myPlayerIdx=0;
-  gs=newGame(np);
-  const pd=Array.from({length:np},(_,i)=>({
-    name:i===0?myNick:P_NAMES[i],
-    src:ALIENS[i%ALIENS.length]?.src||ALIENS[0].src
-  }));
+  const activePlayers = Array.from({length:np},(_,i)=>i);
+  gs=newGame(activePlayers);
+  const pd=new Array(4).fill(null);
+  activePlayers.forEach(i=>{ pd[i]={name:i===0?myNick:P_NAMES[i],src:ALIENS[i%ALIENS.length]?.src||ALIENS[0].src}; });
   localStorage.setItem('ludo_players',JSON.stringify(pd));
   showScreen('game');
   document.getElementById('room-code-bar').style.display='none';
@@ -1656,13 +1657,11 @@ async function hostStartGame(){
   if(!sb||!currentRoomId) return;
   const {data:players} = await sb.from('ludo_players').select('*').eq('room_id',currentRoomId).order('player_idx');
   if(!players||players.length<2){ toast('至少需要2人！'); return; }
-  numPlayers=players.length;
-  gs=newGame(numPlayers);
-  const pd=players.map(p=>({
-    name:p.nickname,
-    src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,
-    id:p.id
-  }));
+  const activePlayers = players.map(p=>p.color_idx!=null?p.color_idx:p.player_idx).sort((a,b)=>a-b);
+  numPlayers=activePlayers.length;
+  gs=newGame(activePlayers);
+  const pd=new Array(4).fill(null);
+  players.forEach(p=>{ const ci=p.color_idx!=null?p.color_idx:p.player_idx; pd[ci]={name:p.nickname,src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,id:p.id}; });
   localStorage.setItem('ludo_players',JSON.stringify(pd));
   const {error} = await sb.from('ludo_rooms').update({status:'playing',game_state:gs}).eq('id',currentRoomId);
   if(error){ toast('开始失败：'+error.message); return; }
@@ -1699,14 +1698,11 @@ function subscribeRoom(rid){
         const bw=document.getElementById('board-wrap');
         if(bw) bw.style.display='flex';
         if(room.game_state){
-          gs=room.game_state; numPlayers=gs.players;
+          gs=room.game_state; numPlayers=gs.activePlayers?.length||gs.players||4;
           sb.from('ludo_players').select('*').eq('room_id',rid).order('player_idx').then(({data})=>{
             if(data){
-              const pd=data.map(p=>({
-                name:p.nickname,
-                src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,
-                id:p.id
-              }));
+              const pd=new Array(4).fill(null);
+              data.forEach(p=>{ const ci=p.color_idx!=null?p.color_idx:p.player_idx; pd[ci]={name:p.nickname,src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,id:p.id}; });
               localStorage.setItem('ludo_players',JSON.stringify(pd));
             }
             drawBoard(gs); updateUI(); initGuardians();
