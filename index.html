@@ -10,7 +10,7 @@
   --sky:#06112e; --card:rgba(255,255,255,0.05); --border:rgba(255,255,255,0.1);
   --radius:16px; --yellow:#ffd166; --green:#c8e84a; --blue:#2b7fd4;
   --text:#e8f4f8; --text-dim:#8ecae6;
-  --p0:#e63946; --p1:#2b7fd4; --p2:#06d6a0; --p3:#ffd166;
+  --p0:#e53935; --p1:#ffb300; --p2:#1e88e5; --p3:#43a047;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100%;font-family:'Nunito',sans-serif;background:var(--sky);color:var(--text);overflow-x:hidden}
@@ -739,9 +739,9 @@ function boardToScreen(r, c) {
   };
 }
 
-const P_COLORS=['#e63946','#2b7fd4','#06d6a0','#ffd166'];
-const P_LIGHT=['#ffc8cc','#b3d4f5','#b3f0e0','#fff0b3'];
-const P_NAMES=['红方','蓝方','绿方','黄方'];
+const P_COLORS=['#e53935','#ffb300','#1e88e5','#43a047'];
+const P_LIGHT=['#ffc8cc','#fff0b3','#b3d4f5','#b3f0e0'];
+const P_NAMES=['红方','黄方','蓝方','绿方'];
 const S=600, C=40; // board size, cell size
 
 // Stars
@@ -989,6 +989,8 @@ function drawBoard(state) {
       }
     });
 
+    const _pd_debug = JSON.parse(localStorage.getItem('ludo_players')||'[]');
+    console.log('[drawBoard] pd:', _pd_debug.map((p,i)=>p?`[${i}]${p.name||'?'}(${p.src?'has-avatar':'NO-AVATAR'})`:null).filter(Boolean), 'pieces:', state.pieces.map(p=>`p${p.player}k${p.idx}@${p.pos}`));
     state.pieces.forEach(pc => {
       if(pc.finished) {
         // 到达终点，显示在中央风车区域
@@ -1717,17 +1719,30 @@ function handleRemoteAction(action){
   if(action.action_type==='start'){
     if(!action.game_state) return;
     gs=action.game_state; numPlayers=gs.activePlayers?.length||Number(gs.players)||4;
-    // Ensure myPlayerIdx is always color_idx
+    // Fetch all players to populate ludo_players localStorage, then draw
     if(gameMode==='online' && sb && currentRoomId){
-      sb.from('ludo_players').select('color_idx').eq('id',myPlayerId).eq('room_id',currentRoomId).single()
-        .then(({data})=>{ if(data?.color_idx!=null) myPlayerIdx=data.color_idx; updateUI(); });
+      sb.from('ludo_players').select('*').eq('room_id',currentRoomId).then(({data})=>{
+        if(data){
+          const pd=new Array(4).fill(null);
+          data.forEach(p=>{ const ci=p.color_idx!=null?p.color_idx:p.player_idx; pd[ci]={name:p.nickname,src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,id:p.id}; });
+          localStorage.setItem('ludo_players',JSON.stringify(pd));
+          const myRec=data.find(p=>p.id===myPlayerId);
+          if(myRec?.color_idx!=null) myPlayerIdx=myRec.color_idx;
+          console.log('[remote start] pd set, myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
+        }
+        const waitDiv=document.getElementById('online-wait');
+        if(waitDiv) waitDiv.style.display='none';
+        const bw=document.getElementById('board-wrap');
+        if(bw) bw.style.display='flex';
+        drawBoard(gs); updateUI(); initGuardians();
+      });
+    } else {
+      const waitDiv=document.getElementById('online-wait');
+      if(waitDiv) waitDiv.style.display='none';
+      const bw=document.getElementById('board-wrap');
+      if(bw) bw.style.display='flex';
+      drawBoard(gs); updateUI(); initGuardians();
     }
-    const waitDiv=document.getElementById('online-wait');
-    if(waitDiv) waitDiv.style.display='none';
-    const bw=document.getElementById('board-wrap');
-    if(bw) bw.style.display='flex';
-    console.log('[remote start] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
-    drawBoard(gs); updateUI(); initGuardians();
     return;
   }
   if(!action.game_state) return;
