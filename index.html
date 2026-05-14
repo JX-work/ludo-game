@@ -966,10 +966,8 @@ function drawBoard(state) {
       slots.forEach((slot, si) => {
         const cx = (slot.c + 0.5) * C;
         const cy = (slot.r + 0.5) * C;
-        const clipId = `base_${pi}_${si}`;
-        h += `<circle cx="${cx}" cy="${cy}" r="${C*0.7}" fill="${col}" opacity="0.85"/>`;
-        h += `<defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="${C*0.68}"/></clipPath></defs>`;
-        h += `<image href="${avatarSrc}" x="${cx-C*0.68}" y="${cy-C*0.68}" width="${C*1.36}" height="${C*1.36}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`;
+        h += `<defs><clipPath id="base_${pi}_${si}"><circle cx="${cx}" cy="${cy}" r="${C*0.7}"/></clipPath></defs>`;
+        h += `<image href="${avatarSrc}" x="${cx-C*0.7}" y="${cy-C*0.7}" width="${C*1.4}" height="${C*1.4}" clip-path="url(#base_${pi}_${si})" preserveAspectRatio="xMidYMid slice"/>`;
       });
     });
   }
