@@ -931,7 +931,21 @@ function drawBoard(state) {
 
   // 棋盘图片作为背景
   h += `<image href="./imgs/board.jpg" x="0" y="0" width="600" height="600" preserveAspectRatio="xMidYMid meet"/>`;
-  // Base slot overlays
+
+  // 遮盖四个基地区域（覆盖 board.jpg 内置的示例图案）
+  const BC = 40;
+  const BASE_MASKS = [
+    {x:0,      y:0,      fill:'#ffcdd2', label:'红方', lx:100, ly:100, lcol:'#b71c1c'},
+    {x:10*BC,  y:0,      fill:'#fff9c4', label:'黄方', lx:500, ly:100, lcol:'#f57f17'},
+    {x:0,      y:10*BC,  fill:'#c8e6c9', label:'绿方', lx:100, ly:500, lcol:'#1b5e20'},
+    {x:10*BC,  y:10*BC,  fill:'#bbdefb', label:'蓝方', lx:500, ly:500, lcol:'#0d47a1'},
+  ];
+  BASE_MASKS.forEach(m => {
+    h += `<rect x="${m.x}" y="${m.y}" width="${5*BC}" height="${5*BC}" fill="${m.fill}" opacity="0.92"/>`;
+    h += `<text x="${m.lx}" y="${m.ly+6}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="bold" fill="${m.lcol}" opacity="0.7" font-family="sans-serif">${m.label}</text>`;
+  });
+
+  // 基地棋子槽：有玩家加入该颜色才显示角色图片 + 编号
   {
     const BASE_SLOT_COORDS = [
       [{r:1,c:1},{r:1,c:3},{r:3,c:1},{r:3,c:3}],
@@ -941,6 +955,9 @@ function drawBoard(state) {
     ];
     const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
     BASE_SLOT_COORDS.forEach((slots, pi) => {
+      const playerData = pd[pi];
+      const avatarSrc = playerData ? playerData.src : '';
+      if (!avatarSrc) return; // 无玩家加入此颜色，只留遮盖层
       slots.forEach((slot, si) => {
         const cx = slot.c * 40 + 20;
         const cy = slot.r * 40 + 20;
@@ -948,16 +965,9 @@ function drawBoard(state) {
         const piecesInBase = state ? state.pieces.filter(pc => pc.player === pi && pc.pos === -1) : [];
         const piece = piecesInBase[si];
         if (piece) {
-          const playerData = pd[pi];
-          const avatarSrc = playerData ? playerData.src : '';
-          if (avatarSrc) {
-            h += '<defs><clipPath id="' + clipId + '"><circle cx="' + cx + '" cy="' + cy + '" r="17"/></clipPath></defs>';
-            h += '<image href="' + avatarSrc + '" x="' + (cx-17) + '" y="' + (cy-17) + '" width="34" height="34" clip-path="url(#' + clipId + ')"/>';
-          } else {
-            h += '<circle cx="' + cx + '" cy="' + cy + '" r="17" fill="rgba(255,255,255,0.3)" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>';
-          }
-        } else {
-          h += '<circle cx="' + cx + '" cy="' + cy + '" r="17" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>';
+          h += `<defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="17"/></clipPath></defs>`;
+          h += `<image href="${avatarSrc}" x="${cx-17}" y="${cy-17}" width="34" height="34" clip-path="url(#${clipId})"/>`;
+          h += `<text x="${cx+12}" y="${cy-12}" font-size="9" font-weight="bold" fill="#333" font-family="sans-serif">${si+1}</text>`;
         }
       });
     });
