@@ -1041,7 +1041,7 @@ function drawPieceAvatar(cx, cy, pc, state) {
   const PC = ['#e53935','#ffb300','#1e88e5','#43a047'];
   const col = PC[pc.player];
   const C = 40, r = 16;
-  const isTurn = state && state.currentPlayer === pc.player && state.phase === 'move';
+  const isTurn = state && Number(state.currentPlayer) === Number(pc.player) && state.phase === 'move';
   const movable = isTurn && canMove(pc, state.diceVal, state);
   const filter = movable ? 'filter="url(#pglow)"' : '';
   const clipId = 'pclip_' + pc.player + '_' + pc.idx;
@@ -1059,7 +1059,7 @@ function drawPieceAvatar(cx, cy, pc, state) {
 
 function drawPiece(cx, cy, pc, state) {
   const r = 12;
-  const isTurn = state && state.currentPlayer === pc.player && state.phase === 'move';
+  const isTurn = state && Number(state.currentPlayer) === Number(pc.player) && state.phase === 'move';
   const movable = isTurn && canMove(pc, state.diceVal, state);
   const filter = movable ? 'filter="url(#pglow)"' : '';
   const clipId = 'pclip2_' + pc.player + '_' + pc.idx;
@@ -1126,7 +1126,7 @@ function nextTurn(gs) {
 
 function canMove(pc, dice, state) {
   if(!dice || pc.finished) return false;
-  if(pc.pos === -1) return dice === 6;
+  if(Number(pc.pos) === -1) return Number(dice) === 6;
   const np = nextPos(pc, dice);
   return np !== null;
 }
@@ -1166,8 +1166,9 @@ function nextPos(pc, dice) {
 }
 
 async function doMove(pi, ki) {
-  if(!gs || gs.phase!=='move' || gs.currentPlayer!==pi) return;
-  const pc = gs.pieces.find(p=>p.player===pi&&p.idx===ki);
+  pi = Number(pi); ki = Number(ki);
+  if(!gs || gs.phase!=='move' || Number(gs.currentPlayer)!==pi) return;
+  const pc = gs.pieces.find(p=>Number(p.player)===pi&&Number(p.idx)===ki);
   if(!pc || !canMove(pc, gs.diceVal, gs)) return;
 
   const result = nextPos(pc, gs.diceVal);
@@ -1338,8 +1339,9 @@ async function onRolled(v) {
 }
 
 function handlePieceClick(pi,ki) {
-  if(!gs||gs.phase!=='move'||Number(gs.currentPlayer)!==Number(pi)) return;
-  if(gameMode==='online'&&Number(pi)!==Number(myPlayerIdx)) return;
+  console.log('[click] pi:', pi, 'ki:', ki, 'myPlayerIdx:', myPlayerIdx, 'currentPlayer:', gs?.currentPlayer, 'phase:', gs?.phase, 'mode:', gameMode);
+  if(!gs||gs.phase!=='move'||Number(gs.currentPlayer)!==Number(pi)) { console.log('[click] blocked: phase/currentPlayer mismatch'); return; }
+  if(gameMode==='online'&&Number(pi)!==Number(myPlayerIdx)) { console.log('[click] blocked: not my piece'); return; }
   doMove(pi,ki);
 }
 
