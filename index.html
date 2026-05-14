@@ -956,13 +956,11 @@ function drawBoard(state) {
       [{r:24,c:24},{r:24,c:27},{r:27,c:24},{r:27,c:27}],
       [{r:24,c:1},{r:24,c:4},{r:27,c:1},{r:27,c:4}],
     ];
-    const BASE_COLORS = ['#e53935','#ffb300','#43a047','#1e88e5'];
     const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
     BASE_SLOT_COORDS.forEach((slots, pi) => {
       const playerData = pd[pi];
       const avatarSrc = playerData ? playerData.src : '';
       if (!avatarSrc) return;
-      const col = BASE_COLORS[pi];
       slots.forEach((slot, si) => {
         const cx = (slot.c + 0.5) * C;
         const cy = (slot.r + 0.5) * C;
@@ -1054,25 +1052,23 @@ function drawPieceAvatar(cx, cy, pc, state) {
   let inner = '';
   if (avatarSrc) {
     inner += '<defs><clipPath id="' + clipId + '"><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '"' + (pulse ? '>' + pulse + '</circle>' : '/>') + '</clipPath></defs>';
-    inner += '<image href="' + avatarSrc + '" x="' + (cx-r) + '" y="' + (cy-r) + '" width="' + (r*2) + '" height="' + (r*2) + '" clip-path="url(#' + clipId + ')" ' + filter + '/>';
-    inner += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="2.5"/>';
-  } else {
-    inner += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + col + '" stroke="white" stroke-width="2.5" opacity="0.92" ' + filter + '>' + pulse + '</circle>';
+    inner += '<image href="' + avatarSrc + '" x="' + (cx-r) + '" y="' + (cy-r) + '" width="' + (r*2) + '" height="' + (r*2) + '" clip-path="url(#' + clipId + ')" preserveAspectRatio="xMidYMid slice" ' + filter + '/>';
   }
   return '<g data-pc="' + pc.player + ',' + pc.idx + '" style="cursor:' + (movable?'pointer':'default') + '">' + inner + '</g>';
 }
 
 function drawPiece(cx, cy, pc, state) {
-  const PC = ['#e53935','#ffb300','#1e88e5','#43a047'];
-  const col = PC[pc.player];
-  const C = 40, r = C * 0.3;
+  const r = 12;
   const isTurn = state && state.currentPlayer === pc.player && state.phase === 'move';
   const movable = isTurn && canMove(pc, state.diceVal, state);
-  const pulse = movable ? `<animate attributeName="r" values="${r};${r*1.3};${r}" dur="0.7s" repeatCount="indefinite"/>` : '';
-  const filter = movable ? `filter="url(#pglow)"` : '';
+  const filter = movable ? 'filter="url(#pglow)"' : '';
+  const clipId = 'pclip2_' + pc.player + '_' + pc.idx;
+  const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
+  const avatarSrc = pd[pc.player]?.src || '';
+  if (!avatarSrc) return '';
   return `<g data-pc="${pc.player},${pc.idx}" style="cursor:${movable?'pointer':'default'}">
-    <defs><filter id="pglow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}" stroke="white" stroke-width="2.5" opacity="0.92" ${filter}>${pulse}</circle>
+    <defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath></defs>
+    <image href="${avatarSrc}" x="${cx-r}" y="${cy-r}" width="${r*2}" height="${r*2}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice" ${filter}/>
   </g>`;
 }
 
