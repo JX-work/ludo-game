@@ -933,11 +933,11 @@ function drawBoard(state) {
   h += `<image href="./imgs/board2.jpg" x="0" y="0" width="600" height="600" preserveAspectRatio="xMidYMid meet"/>`;
 
   // 调试网格
-  const C = 40;
-  for(let r = 0; r < 15; r++) {
-    for(let c = 0; c < 15; c++) {
+  const C = 20;
+  for(let r = 0; r < 30; r++) {
+    for(let c = 0; c < 30; c++) {
       h += `<rect x="${c*C}" y="${r*C}" width="${C}" height="${C}" fill="none" stroke="rgba(255,0,0,0.4)" stroke-width="0.5"/>`;
-      h += `<text x="${c*C+4}" y="${r*C+14}" font-size="8" fill="rgba(255,0,0,0.7)" font-family="sans-serif">${r},${c}</text>`;
+      h += `<text x="${c*C+2}" y="${r*C+10}" font-size="7" fill="rgba(255,0,0,0.8)" font-family="sans-serif">${r},${c}</text>`;
     }
   }
 
