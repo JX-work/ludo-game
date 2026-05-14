@@ -1571,19 +1571,15 @@ async function joinOnlineRoom(rid){
     },{onConflict:'id'});
     if(pe){ toast('加入失败：'+pe.message); return; }
   }
-  // Re-fetch confirmed color_idx from DB to handle race conditions
-  const {data:myRec} = await sb.from('ludo_players').select('player_idx,color_idx').eq('id',myPlayerId).eq('room_id',rid).single();
-  const confirmedIdx = (myRec && myRec.color_idx != null) ? myRec.color_idx : (myRec && myRec.player_idx != null ? myRec.player_idx : playerIdx);
-  currentRoomId=rid; myPlayerIdx=confirmedIdx; gameMode='online';
-  localStorage.setItem('ludo_pidx_'+rid, String(confirmedIdx));
-  console.log('[join] myPlayerIdx:', confirmedIdx, 'myPlayerId:', myPlayerId.slice(-6));
+  // Re-fetch color_idx from DB — always use color_idx, never fall back to join order
+  const {data:myRec} = await sb.from('ludo_players').select('color_idx').eq('id',myPlayerId).eq('room_id',rid).single();
+  const confirmedColorIdx = myRec?.color_idx ?? myColorIdx ?? 0;
+  currentRoomId=rid; myPlayerIdx=confirmedColorIdx; gameMode='online';
+  console.log('[join] myPlayerIdx(color_idx):', confirmedColorIdx, 'myPlayerId:', myPlayerId.slice(-6));
   showScreen('game');
   document.getElementById('room-code-bar').style.display='flex';
   document.getElementById('room-code-val').textContent=rid.toUpperCase();
   document.getElementById('board-wrap').style.display='none';
-  // Restore player index from localStorage if available (page refresh scenario)
-  const savedIdx = localStorage.getItem('ludo_pidx_'+rid);
-  if(savedIdx !== null) myPlayerIdx = parseInt(savedIdx);
   if(room.game_state){
     gs=room.game_state; numPlayers=room.max_players;
     document.getElementById('board-wrap').style.display='flex';
@@ -1718,12 +1714,17 @@ function handleRemoteAction(action){
   console.log('[remote]', action.action_type, 'from:', action.player_id?.slice(-6), 'has_gs:', !!action.game_state);
   if(action.action_type==='start'){
     if(!action.game_state) return;
-    gs=action.game_state; numPlayers=Number(gs.players);
+    gs=action.game_state; numPlayers=gs.activePlayers?.length||Number(gs.players)||4;
+    // Ensure myPlayerIdx is always color_idx
+    if(gameMode==='online' && sb && currentRoomId){
+      sb.from('ludo_players').select('color_idx').eq('id',myPlayerId).eq('room_id',currentRoomId).single()
+        .then(({data})=>{ if(data?.color_idx!=null) myPlayerIdx=data.color_idx; updateUI(); });
+    }
     const waitDiv=document.getElementById('online-wait');
     if(waitDiv) waitDiv.style.display='none';
     const bw=document.getElementById('board-wrap');
     if(bw) bw.style.display='flex';
-    console.log('[handleRemoteAction start] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
+    console.log('[remote start] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
     drawBoard(gs); updateUI(); initGuardians();
     return;
   }
