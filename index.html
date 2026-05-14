@@ -956,21 +956,19 @@ function drawBoard(state) {
       [{r:24,c:24},{r:24,c:27},{r:27,c:24},{r:27,c:27}],
       [{r:24,c:1},{r:24,c:4},{r:27,c:1},{r:27,c:4}],
     ];
+    const BASE_COLORS = ['#e53935','#ffb300','#43a047','#1e88e5'];
     const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
     BASE_SLOT_COORDS.forEach((slots, pi) => {
       const playerData = pd[pi];
       const avatarSrc = playerData ? playerData.src : '';
       if (!avatarSrc) return;
+      const col = BASE_COLORS[pi];
       slots.forEach((slot, si) => {
-        const cx = slot.c * C + C / 2;
-        const cy = slot.r * C + C / 2;
-        const clipId = 'bclip_' + pi + '_' + si;
-        const piecesInBase = state ? state.pieces.filter(pc => pc.player === pi && pc.pos === -1) : [];
-        const piece = piecesInBase[si];
-        if (piece) {
-          h += `<defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="17"/></clipPath></defs>`;
-          h += `<image href="${avatarSrc}" x="${cx-17}" y="${cy-17}" width="34" height="34" clip-path="url(#${clipId})"/>`;
-        }
+        const cx = (slot.c + 0.5) * C;
+        const cy = (slot.r + 0.5) * C;
+        h += `<circle cx="${cx}" cy="${cy}" r="${C*0.6}" fill="${col}" opacity="0.85"/>`;
+        h += `<defs><clipPath id="bp${pi}_${si}"><circle cx="${cx}" cy="${cy}" r="${C*0.55}"/></clipPath></defs>`;
+        h += `<image href="${avatarSrc}" x="${cx-C*0.55}" y="${cy-C*0.55}" width="${C*1.1}" height="${C*1.1}" clip-path="url(#bp${pi}_${si})"/>`;
       });
     });
   }
