@@ -742,6 +742,7 @@ function boardToScreen(r, c) {
 const P_COLORS=['#e53935','#ffb300','#1e88e5','#43a047'];
 const P_LIGHT=['#ffc8cc','#fff0b3','#b3d4f5','#b3f0e0'];
 const P_NAMES=['红方','黄方','蓝方','绿方'];
+const P_EMOJIS=['🔴','🟡','🔵','🟢'];
 const S=600, C=40; // board size, cell size
 
 // Stars
@@ -1357,26 +1358,26 @@ function updateUI() {
   document.getElementById('turn-info').textContent=`${P_NAMES[cur]} 的回合`;
   document.getElementById('turn-info').style.color=P_COLORS[cur];
 
-  const TURN_EMOJIS = ['🔴','🟡','🔵','🟢'];
-  const TURN_COLORS = ['#e53935','#ffb300','#1e88e5','#43a047'];
   const banner=document.getElementById('turn-banner');
   if(gameMode==='online'){
     if(isMyTurn && gs.phase==='roll'){
-      banner.innerHTML = '<span style="color:' + TURN_COLORS[cur] + '">' + TURN_EMOJIS[cur] + ' ' + COLOR_NAMES[cur] + '方掷骰子</span>';
-      banner.style.color=TURN_COLORS[cur];
+      banner.innerHTML = `<span style="color:${P_COLORS[cur]}">${P_EMOJIS[cur]} ${P_NAMES[cur]}掷骰子</span>`;
+      banner.style.color=P_COLORS[cur];
       banner.classList.add('banner-pulse');
     } else if(isMyTurn && gs.phase==='move'){
-      banner.innerHTML = '<span style="color:' + TURN_COLORS[cur] + '">🎯 选一颗棋子移动</span>';
-      banner.style.color=TURN_COLORS[cur];
+      banner.innerHTML = `<span style="color:${P_COLORS[cur]}">🎯 选一颗棋子移动</span>`;
+      banner.style.color=P_COLORS[cur];
       banner.classList.remove('banner-pulse');
     } else {
-      banner.innerHTML = '⏳ 等待对方操作...';
+      banner.innerHTML = `⏳ 等待${P_NAMES[cur]}操作...`;
       banner.style.color='var(--text-dim)';
       banner.classList.remove('banner-pulse');
     }
   } else {
-    banner.innerHTML = gs.phase==='roll' ? '<span style="color:' + TURN_COLORS[cur] + '">' + TURN_EMOJIS[cur] + ' ' + COLOR_NAMES[cur] + '方掷骰子</span>' : '<span style="color:' + TURN_COLORS[cur] + '">🎯 ' + COLOR_NAMES[cur] + '方选棋子移动</span>';
-    banner.style.color=TURN_COLORS[cur];
+    banner.innerHTML = gs.phase==='roll'
+      ? `<span style="color:${P_COLORS[cur]}">${P_EMOJIS[cur]} ${P_NAMES[cur]}掷骰子</span>`
+      : `<span style="color:${P_COLORS[cur]}">🎯 ${P_NAMES[cur]}选棋子移动</span>`;
+    banner.style.color=P_COLORS[cur];
     banner.classList.remove('banner-pulse');
   }
 
@@ -1417,14 +1418,15 @@ function updateUI() {
 function renderPanel() {
   if(!gs) return;
   const pd=JSON.parse(localStorage.getItem('ludo_players')||'[]');
-  document.getElementById('players-panel').innerHTML=Array.from({length:numPlayers},(_,i)=>{
+  const active = gs.activePlayers || Array.from({length:numPlayers},(_,k)=>k);
+  document.getElementById('players-panel').innerHTML=active.map(ci=>{
+    const i=Number(ci);
     const p=pd[i]||{name:P_NAMES[i],src:ALIENS[i%ALIENS.length]?.src||ALIENS[0].src};
-    const pcs=gs.pieces.filter(pc=>pc.player===i);
+    const pcs=gs.pieces.filter(pc=>Number(pc.player)===i);
     const fin=pcs.filter(pc=>pc.finished).length;
     const out=pcs.filter(pc=>pc.pos>=0&&!pc.finished).length;
     const base=pcs.filter(pc=>pc.pos===-1).length;
-    const isMe=gameMode==='local'?true:i===myPlayerIdx;
-    const isCur=gs.currentPlayer===i;
+    const isCur=Number(gs.currentPlayer)===i;
     return `<div class="player-card" style="border-color:${isCur?P_COLORS[i]:'rgba(255,255,255,0.08)'};box-shadow:${isCur?`0 0 12px ${P_COLORS[i]}50`:''}">
       <img src="${p.src}" style="width:34px;height:34px;object-fit:contain">
       <div style="flex:1;min-width:0">
