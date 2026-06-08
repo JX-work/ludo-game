@@ -994,6 +994,22 @@ let currentRoomId = null;
 let isHost = false;
 let rtChannel = null;
 
+// B22: broadcast 失败自动重试 + B10: 给所有动作打上 sender color_idx
+async function broadcastAction(payload, retries = 3) {
+  if(!sb) return false;
+  if(payload && payload.game_state && typeof payload.game_state === 'object'){
+    payload = {...payload, game_state: {...payload.game_state, _senderColorIdx: myPlayerIdx}};
+  }
+  for(let i = 0; i < retries; i++){
+    const {error} = await sb.from('ludo_actions').insert(payload);
+    if(!error) return true;
+    console.warn(`[broadcast] 失败 ${i+1}/${retries}：`, error.message||error);
+    await new Promise(r => setTimeout(r, 500 * (i+1)));
+  }
+  toast('网络同步失败，请检查连接');
+  return false;
+}
+
 function newGame(activePlayers) {
   const pieces = [];
   for(let p of activePlayers) for(let k=0;k<4;k++) {
@@ -1053,12 +1069,14 @@ async function doMove(pi, ki) {
   sndMove();
 
   if(result.home) {
-    pc.homePos = result.homePos;
     pc.pos = -2;
     if(result.finished) {
+      // B16: 终点统一用 HOME_DISPLAY[player].length-1，避免魔法数字
       pc.finished = true;
+      pc.homePos = HOME_DISPLAY[pc.player].length - 1;
       log(`${P_NAMES[pi]} 棋子${ki+1} 到达终点！🏆`);
     } else {
+      pc.homePos = result.homePos;
       log(`${P_NAMES[pi]} 棋子${ki+1} 进入终点跑道第${result.homePos+1}格`);
     }
   } else {
@@ -1109,9 +1127,9 @@ async function doMove(pi, ki) {
 
   const winner = checkWin(gs);
   if(winner >= 0) {
-    // B2: 联机模式先广播 win 动作，确保远端玩家看到结算画面
+    // B2: 联机模式先广播 win 动作，确保远端玩家看到结算画面（B22 重试）
     if(gameMode==='online' && sb && currentRoomId){
-      await sb.from('ludo_actions').insert({
+      await broadcastAction({
         room_id: currentRoomId,
         player_id: myPlayerId,
         action_type: 'win',
@@ -1131,12 +1149,12 @@ async function doMove(pi, ki) {
     gs.phase='roll';
   }
 
-  // 联机广播移动动作
+  // 联机广播移动动作（B22 重试）
   if(gameMode==='online' && sb && currentRoomId){
-    await sb.from('ludo_actions').insert({
+    await broadcastAction({
       room_id: currentRoomId, player_id: myPlayerId,
       action_type: 'move', piece_idx: ki,
-      game_state: gs
+      game_state: JSON.parse(JSON.stringify(gs))
     });
     // 同步房间游戏状态
     await sb.from('ludo_rooms').update({game_state:gs}).eq('id',currentRoomId);
@@ -1209,7 +1227,7 @@ function rollDice() {
           toast('连续3个6！跳过本回合');
           gs.currentPlayer = nextTurn(gs);
           if(gameMode==='online' && sb && currentRoomId){
-            await sb.from('ludo_actions').insert({
+            await broadcastAction({
               room_id:currentRoomId, player_id:myPlayerId,
               action_type:'roll', dice_val:v,
               game_state: JSON.parse(JSON.stringify(gs))
@@ -1233,16 +1251,15 @@ async function onRolled(v) {
 
   if(v===6) { gs.extraRoll=true; }
 
-  // Helper: broadcast a deep-copy snapshot of gs
+  // Helper: broadcast a deep-copy snapshot of gs（B22 重试）
   async function broadcastRoll() {
     if(gameMode==='online' && sb && currentRoomId){
       const snap = JSON.parse(JSON.stringify(gs));
       console.log('[broadcastRoll] currentPlayer:', snap.currentPlayer, 'phase:', snap.phase);
-      const {error} = await sb.from('ludo_actions').insert({
+      await broadcastAction({
         room_id:currentRoomId, player_id:myPlayerId,
         action_type:'roll', dice_val:v, game_state:snap
       });
-      if(error) console.error('[broadcastRoll] insert error:', error.message);
     }
   }
 
@@ -1518,7 +1535,9 @@ async function joinOnlineRoom(rid){
   document.getElementById('room-code-val').textContent=rid.toUpperCase();
   document.getElementById('board-wrap').style.display='none';
   if(room.game_state){
-    gs=room.game_state; numPlayers=room.max_players;
+    gs=room.game_state;
+    // B21: 用实际加入的玩家数（activePlayers），不要直接用 max_players
+    numPlayers = (gs && gs.activePlayers?.length) || (room.ludo_players?.length) || room.max_players;
     document.getElementById('board-wrap').style.display='flex';
     drawBoard(gs); updateUI(); initGuardians();
     log('重新连接游戏中...');
@@ -1597,7 +1616,7 @@ async function hostStartGame(){
   const bw=document.getElementById('board-wrap');
   if(bw) bw.style.display='flex';
   drawBoard(gs); updateUI(); initGuardians();
-  await sb.from('ludo_actions').insert({
+  await broadcastAction({
     room_id:currentRoomId, player_id:myPlayerId,
     action_type:'start', game_state:gs
   });
@@ -1694,18 +1713,71 @@ function handleRemoteAction(action){
     return;
   }
   if(action.action_type==='roll'||action.action_type==='move'){
-    const prev = gs ? Number(gs.currentPlayer) : 0;
-    gs=action.game_state; numPlayers=Number(gs.players);
-    if(action.action_type==='roll'){
-      const el=document.getElementById('dice-face');
-      if(el) el.textContent=['','⚀','⚁','⚂','⚃','⚄','⚅'][action.dice_val]||'🎲';
-      const dr=document.getElementById('dice-result');
-      if(dr) dr.textContent=P_NAMES[prev]+' 掷了 '+action.dice_val+' 点';
-      sndDice();
+    const prev = gs ? Number(gs.currentPlayer) : null;
+    // B10: 校验发送者是否是上一回合的玩家（sender 必须 == 当前回合 player）
+    const senderColorIdx = Number(action.game_state?._senderColorIdx);
+    if(!isNaN(senderColorIdx) && prev !== null && senderColorIdx !== prev){
+      console.warn('[B10] 忽略非当前回合玩家的动作', {sender:senderColorIdx, expected:prev});
+      return;
     }
-    if(action.action_type==='move') sndMove();
-    console.log('[handleRemoteAction '+action.action_type+'] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
+    // 保留旧棋子快照用于 B14 diff
+    const oldPieces = gs ? gs.pieces.map(p => ({...p})) : [];
+
+    if(action.action_type==='roll'){
+      // B15: 远端骰子滚动动画
+      const el = document.getElementById('dice-face');
+      sndDice();
+      if(el){
+        el.classList.add('rolling','disabled');
+        let n = 0;
+        const spin = setInterval(() => {
+          el.textContent = DICE_F[Math.floor(Math.random()*6)+1];
+          if(++n >= 8){
+            clearInterval(spin);
+            el.classList.remove('rolling','disabled');
+            el.textContent = DICE_F[action.dice_val] || '🎲';
+            const dr = document.getElementById('dice-result');
+            if(dr) dr.textContent = P_NAMES[prev] + ' 掷了 ' + action.dice_val + ' 点';
+            gs = action.game_state;
+            numPlayers = gs.activePlayers?.length || Number(gs.players) || 4;
+            console.log('[handleRemoteAction roll] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
+            drawBoard(gs); updateUI();
+          }
+        }, 55);
+      } else {
+        gs = action.game_state;
+        numPlayers = gs.activePlayers?.length || Number(gs.players) || 4;
+        drawBoard(gs); updateUI();
+      }
+      return;
+    }
+
+    // ===== move =====
+    const newPieces = action.game_state.pieces || [];
+    gs = action.game_state;
+    numPlayers = gs.activePlayers?.length || Number(gs.players) || 4;
+    sndMove();
+    console.log('[handleRemoteAction move] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
     drawBoard(gs); updateUI();
+    // B14: 远端 move 播放吃子/跳跃动画
+    newPieces.forEach((np, i) => {
+      const op = oldPieces[i];
+      if(!op) return;
+      const opPos = Number(op.pos), npPos = Number(np.pos);
+      // 被吃：从路径回到基地
+      if(opPos >= 0 && opPos < LUDO_OUTER.length && npPos === -1){
+        const {r,c} = LUDO_OUTER[opPos];
+        const sc = boardToScreen(r, c);
+        if(typeof alienEatEffect === 'function') alienEatEffect(sc.x, sc.y);
+        if(typeof showEatPopup === 'function') showEatPopup();
+        sndEat();
+      }
+      // 移动：路径上位置变化
+      if(opPos !== npPos && npPos >= 0 && npPos < LUDO_OUTER.length && !np.finished){
+        const {r,c} = LUDO_OUTER[npPos];
+        animatePieceJump((c+0.5)*40, (r+0.5)*40);
+      }
+    });
   }
 }
 
@@ -1746,7 +1818,7 @@ async function restartGame(){
     const newGs = newGame(activePlayers);
     const {error} = await sb.from('ludo_rooms').update({status:'playing',game_state:newGs}).eq('id',currentRoomId);
     if(error){ toast('重启失败：'+error.message); return; }
-    await sb.from('ludo_actions').insert({
+    await broadcastAction({
       room_id: currentRoomId, player_id: myPlayerId,
       action_type: 'start', game_state: newGs
     });
