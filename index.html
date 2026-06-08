@@ -769,111 +769,7 @@ function sndSafe(){beep(800,.12,.1);setTimeout(()=>beep(1000,.12,.1),130);}
 // ============================================================
 // BOARD PATH - 标准飞行棋52格外圈路径 (row,col)
 // ============================================================
-// 棋盘15x15，基地在四个角6x6，中间3格走廊
-const PATH = [
-  // 红出发→右→上→顶
-  [8,1],[8,2],[8,3],[8,4],[8,5],           // 0-4
-  [7,6],[6,6],[5,6],[4,6],[3,6],[2,6],[1,6], // 5-11
-  [0,6],[0,7],[0,8],                        // 12-14
-  // 蓝出发→下→右
-  [1,8],[2,8],[3,8],[4,8],[5,8],           // 15-19
-  [6,9],[6,10],[6,11],[6,12],[6,13],       // 20-24
-  [7,13],                                   // 25
-  // 绿出发→下→左
-  [8,13],[9,13],[10,13],[11,13],[12,13],   // 26-30
-  [13,13],[14,13],                          // 31-32
-  [14,12],[14,11],[14,10],[14,9],[14,8],   // 33-37
-  [14,7],[14,6],                            // 38-39 (注：这里绕过中间)
-  // 黄出发→上→左
-  [13,6],[12,6],[11,6],[10,6],[9,6],       // 40-44 (改为col=6)
-  [8,6],                                    // 45
-  [8,5],[8,4],[8,3],[8,2],[8,1],           // 46-50 重复了...
-  [7,0],                                    // 51
-];
-
-// 标准正确52格路径（经过验证）
-const LPATH = [
-  [6,1],[6,2],[6,3],[6,4],[6,5],           // 0-4   红区出发
-  [5,6],[4,6],[3,6],[2,6],[1,6],[0,6],     // 5-10  左上行
-  [0,7],[0,8],                              // 11-12 顶横
-  [1,8],[2,8],[3,8],[4,8],[5,8],           // 13-17 蓝区出发
-  [6,9],[6,10],[6,11],[6,12],[6,13],       // 18-22 右横
-  [7,13],[8,13],[9,13],[10,13],[11,13],[12,13],[13,13], // 23-29 绿区出发
-  [14,13],[14,12],[14,11],[14,10],[14,9],[14,8],[14,7], // 30-36 底横
-  [13,7],[12,7],[11,7],[10,7],[9,7],[8,7], // 37-42 黄区出发
-  [7,7],                                    // 43 (中心附近)
-  [7,6],[7,5],[7,4],[7,3],[7,2],[7,1],[7,0], // 44-50 左横
-  [6,0],[5,0],                              // 51-52... 超了
-
-  // 最终答案：用经典飞行棋坐标
-];
-
-// 使用经过验证的标准飞行棋路径
-// 玩家0(红)从idx0出发，玩家1(蓝)从idx13出发，玩家2(绿)从idx26出发，玩家3(黄)从idx39出发
-const BOARD_PATH = [
-  // 0-12: 红方区 (左下角出发向右上)
-  [8,1],[8,2],[8,3],[8,4],[8,5],           // 0-4
-  [7,6],[6,6],[5,6],[4,6],[3,6],[2,6],[1,6], // 5-11
-  [0,6],                                    // 12
-  // 13-25: 蓝方区
-  [0,7],[0,8],                              // 13-14
-  [1,8],[2,8],[3,8],[4,8],[5,8],           // 15-19
-  [6,9],[6,10],[6,11],[6,12],[6,13],       // 20-24
-  [6,14],                                   // 25
-  // 26-38: 绿方区
-  [7,14],[8,14],                            // 26-27
-  [8,13],[9,13],[10,13],[11,13],[12,13],[13,13], // 28-35... 超了
-];
-
-// 最终决定：使用简化但正确的路径
-// 标准飞行棋外圈恰好52格
-const GP = [
-  // 红(0): 起点idx=1, HOME_ENTRY=51→红色跑道col=7,row8→3
-  [8,1],[8,2],[8,3],[8,4],[8,5],            // 0-4
-  [7,6],[6,6],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6], // 5-12
-  [0,7],[0,8],                               // 13-14 (这里蓝方起点是14)
-  // 蓝(1): 起点idx=14, HOME_ENTRY=12→蓝色跑道row=7,col8→13
-  [1,8],[2,8],[3,8],[4,8],[5,8],            // 15-19
-  [6,9],[6,10],[6,11],[6,12],[6,13],[6,14], // 20-25
-  [7,14],                                    // 26 (绿方起点=27)
-  // 绿(2): 起点idx=27, HOME_ENTRY=25→绿色跑道col=7,row6→1
-  [8,13],[9,13],[10,13],[11,13],[12,13],[13,13],[14,13], // 27-33
-  [14,12],[14,11],[14,10],[14,9],[14,8],[14,7],[14,6],   // 34-40
-  // 黄(3): 起点idx=40, HOME_ENTRY=38→黄色跑道row=7,col6→1
-  [13,6],[12,6],[11,6],[10,6],[9,6],[8,6],[7,6],         // 41-47... 跟5-11重复了
-];
-
-// 终极正确路径 - 避免重复格子
-const FINAL_PATH = (function() {
-  const p = [];
-  // 红方出发区 (左下角，行8)
-  for(let c=1;c<=5;c++) p.push([8,c]);            // 0-4
-  // 上行（col=6）
-  for(let r=7;r>=1;r--) p.push([r,6]);             // 5-11
-  // 顶横（row=0）
-  p.push([0,6],[0,7],[0,8]);                        // 12-14
-  // 蓝方出发区 下行（col=8）
-  for(let r=1;r<=5;r++) p.push([r,8]);              // 15-19
-  // 右横（row=6）
-  for(let c=9;c<=13;c++) p.push([6,c]);             // 20-24
-  // 绿方出发区 右下角 下行（col=13）
-  for(let r=7;r<=13;r++) p.push([r,13]);            // 25-31
-  // 底横（row=14）
-  for(let c=12;c>=7;c--) p.push([14,c]);            // 32-38
-  // 黄方出发区 左下角 上行（col=7不对，用col=6）
-  // 注意：col=6已经在5-11用过了。标准飞行棋这里用col=7
-  for(let r=13;r>=8;r--) p.push([r,7]);             // 39-44
-  // 左横（row=8，回到出发区附近）
-  // 但row=8 col1-5已经是0-4了...
-  // 解决方案：黄方走col=7那列，底部横走row=7
-  for(let c=6;c>=1;c--) p.push([8,c]);              // 45-50 ... 重复0-4
-  // 无法避免重复，这是飞行棋棋盘的特性
-  // 正确做法：外圈路径使用格子的"路径身份"而非坐标
-  return p.slice(0,52);
-})();
-
-// 结论：真正的飞行棋外圈路径必须使用专门的路径定义
-// 下面是手工验证的完整路径（15×15网格）
+// 30×30 网格，board2.jpg 作为底图，LUDO_OUTER 是 47 格外圈手工标定坐标
 const LUDO_OUTER = [
   {r:10,c:2},{r:9,c:4},{r:9,c:6},{r:10,c:8},{r:8,c:9},{r:6,c:9},{r:5,c:9},{r:3,c:9},
   {r:2,c:11},{r:2,c:13},{r:2,c:16},{r:2,c:18},{r:3,c:20},{r:5,c:20},{r:7,c:20},{r:8,c:20},
@@ -890,51 +786,18 @@ const P_START = [0, 12, 23, 36];
 // HOME_ENTRY：走过该格后进入终点跑道（各玩家起始idx的前一格，绕回）
 const P_HOME_ENTRY = [46, 11, 22, 35];
 
-// 终点跑道（各玩家专属，各5格+1中心）
-const HOME_LANES = {
-  0: [{r:7,c:1},{r:7,c:2},{r:7,c:3},{r:7,c:4},{r:7,c:5},{r:7,c:6}], // 但这跟路径46-51冲突
-  // 更正：用标准位置
-};
-// 修正终点跑道
-const HOME_TRACK = [
-  // 红：row8, col1→6 (向右进中心) 不对...
-  // 实际飞行棋：终点跑道是从出发区附近向中心延伸的彩色格子
-  // 红: col=7, row=8到row=3(向上)
-  [[8,7],[7,7],[6,7],[5,7],[4,7],[3,7]],  // 红(0)终点道
-  // 蓝: row=7, col=8到col=13(向右)
-  [[7,8],[7,9],[7,10],[7,11],[7,12],[7,13]], // 蓝(1)终点道
-  // 绿: col=7, row=6到row=11(向下)
-  [[6,7],[7,7],[8,7],[9,7],[10,7],[11,7]], // 绿(2)终点道 -- 跟红重复了col=7
-];
-
-// 最终方案：放弃纠结路径坐标，专注游戏逻辑
-// 使用位置索引系统：pos=-1=基地, pos=0-51=外圈, pos=52-57=终点道, pos=58=终点
-// 棋盘只负责渲染，路径坐标用于显示
-
-const DISPLAY_PATH = LUDO_OUTER; // 52个坐标用于显示
-
-// 基地坐标（每人4个棋子的显示位置）
-const BASE_POS = [
-  // 红(0)：左上角 rows0-5, cols0-5, 基地中心在row2.5,col2.5
-  [[1.5,1.5],[1.5,3.5],[3.5,1.5],[3.5,3.5]],
-  // 蓝(1)：右上角 rows0-5, cols9-14
-  [[1.5,10.5],[1.5,12.5],[3.5,10.5],[3.5,12.5]],
-  // 绿(2)：右下角 rows9-14, cols9-14
-  [[10.5,10.5],[10.5,12.5],[12.5,10.5],[12.5,12.5]],
-  // 黄(3)：左下角 rows9-14, cols0-5
-  [[10.5,1.5],[10.5,3.5],[12.5,1.5],[12.5,3.5]],
-];
+const DISPLAY_PATH = LUDO_OUTER;
 
 // 终点道坐标（显示用）
 const HOME_DISPLAY = [
-  [{r:5,c:14},{r:7,c:14},{r:9,c:14},{r:11,c:14},{r:13,c:14}],
-  [{r:3,c:14},{r:14,c:26},{r:14,c:24},{r:14,c:22},{r:14,c:20},{r:14,c:18}],
-  [{r:14,c:16},{r:14,c:14},{r:14,c:12},{r:14,c:10},{r:14,c:8}],
-  [{r:16,c:14},{r:18,c:14},{r:20,c:14},{r:22,c:14},{r:24,c:14}],
+  [{r:5,c:14},{r:7,c:14},{r:9,c:14},{r:11,c:14},{r:13,c:14}],                       // 红
+  [{r:3,c:14},{r:14,c:26},{r:14,c:24},{r:14,c:22},{r:14,c:20},{r:14,c:18}],         // 黄
+  [{r:14,c:16},{r:14,c:14},{r:14,c:12},{r:14,c:10},{r:14,c:8}],                     // 蓝
+  [{r:16,c:14},{r:18,c:14},{r:20,c:14},{r:22,c:14},{r:24,c:14}],                    // 绿
 ];
 
-// 安全格索引（在DISPLAY_PATH中）
-const SAFE_IDX = [0, 8, 13, 21, 26, 34, 39, 47];
+// 安全格索引（出发格 0/12/23/36 + 其余路径关键格）
+const SAFE_IDX = [0, 12, 23, 36, 8, 13, 21, 26, 34, 39];
 
 // ============================================================
 // DRAW BOARD
@@ -1123,31 +986,21 @@ function newGame(activePlayers) {
 }
 
 function nextTurn(gs) {
-  const active = gs.activePlayers || [0,1,2,3];
+  const active = (gs.activePlayers || [0,1,2,3]).map(Number);
   const idx = active.indexOf(Number(gs.currentPlayer));
   return active[(idx + 1) % active.length];
 }
 
 function canMove(pc, dice, state) {
+  dice = Number(dice);
   if(!dice || pc.finished) return false;
-  if(Number(pc.pos) === -1) return Number(dice) === 6;
+  if(Number(pc.pos) === -1) return dice === 6;
   const np = nextPos(pc, dice);
   return np !== null;
 }
 
-function isUnderThreat(pc, state) {
-  if(pc.pos<0||pc.finished||SAFE_IDX.includes(pc.pos)) return false;
-  for(const other of state.pieces){
-    if(other.player===pc.player||other.pos<0||other.finished) continue;
-    for(let d=1;d<=3;d++){
-      const res=nextPos(other,d);
-      if(res&&!res.home&&res.pos===pc.pos) return true;
-    }
-  }
-  return false;
-}
-
 function nextPos(pc, dice) {
+  dice = Number(dice);
   if(pc.pos === -1) {
     return dice === 6 ? {pos:P_START[pc.player], home:false, homePos:-1} : null;
   }
@@ -1199,8 +1052,8 @@ async function doMove(pi, ki) {
     }
     // 吃子
     gs.pieces.forEach(other => {
-      if(other.player===pi||other.pos!==pc.pos||other.finished||other.pos===-1) return;
-      const safe = SAFE_IDX.includes(pc.pos);
+      if(Number(other.player)===Number(pi)||Number(other.pos)!==Number(pc.pos)||other.finished||Number(other.pos)===-1) return;
+      const safe = SAFE_IDX.includes(Number(pc.pos));
       if(!safe) {
         // 吃子特效
         if(other.pos < DISPLAY_PATH.length) {
@@ -1211,6 +1064,7 @@ async function doMove(pi, ki) {
         other.pos = -1; other.homePos = -1;
         sndEat(); showEatPopup();
         log(`${P_NAMES[pi]} 吃掉了 ${P_NAMES[other.player]} 的棋子！💥 送回基地`);
+        gs.extraRoll = true; // B1: 吃子后再掷一次
       } else {
         // 安全格特效
         if(pc.pos < DISPLAY_PATH.length) {
@@ -1225,7 +1079,20 @@ async function doMove(pi, ki) {
   }
 
   const winner = checkWin(gs);
-  if(winner >= 0) { endGame(winner); return; }
+  if(winner >= 0) {
+    // B2: 联机模式先广播 win 动作，确保远端玩家看到结算画面
+    if(gameMode==='online' && sb && currentRoomId){
+      await sb.from('ludo_actions').insert({
+        room_id: currentRoomId,
+        player_id: myPlayerId,
+        action_type: 'win',
+        game_state: JSON.parse(JSON.stringify(gs))
+      });
+      await sb.from('ludo_rooms').update({game_state:gs,status:'ended'}).eq('id',currentRoomId);
+    }
+    endGame(winner);
+    return;
+  }
 
   gs.diceVal = null;
   if(gs.extraRoll) {
@@ -1692,6 +1559,11 @@ function subscribeRoom(rid){
     .on('postgres_changes',{event:'*',schema:'public',table:'ludo_players',filter:'room_id=eq.'+rid},async()=>{
       const {data:room} = await sb.from('ludo_rooms').select('*,ludo_players(*)').eq('id',rid).single();
       if(room&&room.status==='waiting') showWaitingRoom(room);
+      // B11: 房间玩家变化时刷新颜色可选状态（排除自己已占的色）
+      if(room){
+        const taken = (room.ludo_players||[]).filter(p=>p.id!==myPlayerId).map(p=>Number(p.color_idx));
+        refreshColorOpts(taken);
+      }
       renderPanel();
     })
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'ludo_actions',filter:'room_id=eq.'+rid},pl=>{
@@ -1734,6 +1606,8 @@ function handleRemoteAction(action){
   if(action.action_type==='start'){
     if(!action.game_state) return;
     gs=action.game_state; numPlayers=gs.activePlayers?.length||Number(gs.players)||4;
+    // B19: 远端 restart 时隐藏结算 overlay
+    document.getElementById('end-overlay').classList.add('hidden');
     // Fetch all players to populate ludo_players localStorage, then draw
     if(gameMode==='online' && sb && currentRoomId){
       sb.from('ludo_players').select('*').eq('room_id',currentRoomId).then(({data})=>{
@@ -1761,6 +1635,13 @@ function handleRemoteAction(action){
     return;
   }
   if(!action.game_state) return;
+  if(action.action_type==='win'){
+    // B2: 接收远端胜利广播，本地也触发结算
+    gs=action.game_state;
+    const w = checkWin(gs);
+    if(w >= 0){ drawBoard(gs); endGame(w); }
+    return;
+  }
   if(action.action_type==='roll'||action.action_type==='move'){
     const prev = gs ? Number(gs.currentPlayer) : 0;
     gs=action.game_state; numPlayers=Number(gs.players);
@@ -1805,7 +1686,24 @@ async function leaveGame(){
   if(bw) bw.style.display='flex';
   showScreen('home');
 }
-function restartGame(){document.getElementById('end-overlay').classList.add('hidden');if(gameMode==='local')startLocal(numPlayers);}
+async function restartGame(){
+  document.getElementById('end-overlay').classList.add('hidden');
+  if(gameMode==='local'){ startLocal(numPlayers); return; }
+  // B19: 联机模式重置游戏状态并广播给所有玩家
+  if(gameMode==='online' && sb && currentRoomId && gs && gs.activePlayers){
+    const activePlayers = gs.activePlayers.map(Number);
+    const newGs = newGame(activePlayers);
+    const {error} = await sb.from('ludo_rooms').update({status:'playing',game_state:newGs}).eq('id',currentRoomId);
+    if(error){ toast('重启失败：'+error.message); return; }
+    await sb.from('ludo_actions').insert({
+      room_id: currentRoomId, player_id: myPlayerId,
+      action_type: 'start', game_state: newGs
+    });
+    gs = newGs;
+    drawBoard(gs); updateUI();
+    log('🎲 新一局开始！');
+  }
+}
 function copyCode(){
   if(!currentRoomId){ toast('请先加入房间'); return; }
   const url = location.href.split('?')[0] + '?room=' + currentRoomId;
