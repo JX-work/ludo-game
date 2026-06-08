@@ -1186,8 +1186,6 @@ async function doMove(pi, ki) {
     if(result.finished) {
       pc.finished = true;
       log(`${P_NAMES[pi]} 棋子${ki+1} 到达终点！🏆`);
-      const myPcs = gs.pieces.filter(p=>p.player===pi);
-      if(myPcs.every(p=>p.finished)) { endGame(pi); return; }
     } else {
       log(`${P_NAMES[pi]} 棋子${ki+1} 进入终点跑道第${result.homePos+1}格`);
     }
@@ -1226,6 +1224,9 @@ async function doMove(pi, ki) {
     });
   }
 
+  const winner = checkWin(gs);
+  if(winner >= 0) { endGame(winner); return; }
+
   gs.diceVal = null;
   if(gs.extraRoll) {
     gs.phase='roll'; gs.extraRoll=false;
@@ -1246,6 +1247,17 @@ async function doMove(pi, ki) {
   }
 
   drawBoard(gs); updateUI();
+}
+
+function checkWin(gs) {
+  const players = [...new Set(gs.pieces.map(p => p.player))];
+  for(const player of players) {
+    const pieces = gs.pieces.filter(p => p.player === player);
+    if(pieces.every(p => p.finished)) {
+      return player;
+    }
+  }
+  return -1;
 }
 
 function endGame(winner) {
