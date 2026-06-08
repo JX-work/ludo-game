@@ -769,35 +769,52 @@ function sndSafe(){beep(800,.12,.1);setTimeout(()=>beep(1000,.12,.1),130);}
 // ============================================================
 // BOARD PATH - 标准飞行棋52格外圈路径 (row,col)
 // ============================================================
-// 30×30 网格，board2.jpg 作为底图，LUDO_OUTER 是 47 格外圈手工标定坐标
+// 30×30 网格（每视觉格 = 2 网格单位），board2.jpg 作为底图
+// 标准 15×15 十字飞行棋外圈 52 格，顺时针：四方出发点间距 13 格
 const LUDO_OUTER = [
-  {r:10,c:2},{r:9,c:4},{r:9,c:6},{r:10,c:8},{r:8,c:9},{r:6,c:9},{r:5,c:9},{r:3,c:9},
-  {r:2,c:11},{r:2,c:13},{r:2,c:16},{r:2,c:18},{r:3,c:20},{r:5,c:20},{r:7,c:20},{r:8,c:20},
-  {r:10,c:21},{r:9,c:23},{r:9,c:25},{r:10,c:27},{r:13,c:28},{r:15,c:28},{r:17,c:28},
-  {r:19,c:27},{r:20,c:25},{r:20,c:23},{r:19,c:21},{r:20,c:20},{r:22,c:20},{r:24,c:20},
-  {r:26,c:20},{r:27,c:18},{r:27,c:16},{r:27,c:15},{r:27,c:13},{r:27,c:11},{r:26,c:9},
-  {r:24,c:9},{r:22,c:9},{r:20,c:9},{r:19,c:8},{r:20,c:6},{r:20,c:4},{r:19,c:2},
-  {r:17,c:1},{r:15,c:1},{r:13,c:1}
+  // 0-4: 红方出发 (visual row 6, col 1→5)
+  {r:13,c:3},{r:13,c:5},{r:13,c:7},{r:13,c:9},{r:13,c:11},
+  // 5-10: 左上行 (visual col 6, row 5→0)
+  {r:11,c:13},{r:9,c:13},{r:7,c:13},{r:5,c:13},{r:3,c:13},{r:1,c:13},
+  // 11-12: 顶横 (visual row 0, col 7→8) — 12=黄方 HOME_ENTRY
+  {r:1,c:15},{r:1,c:17},
+  // 13-17: 黄方出发 (visual col 8, row 1→5)
+  {r:3,c:17},{r:5,c:17},{r:7,c:17},{r:9,c:17},{r:11,c:17},
+  // 18-23: 右臂顶横 (visual row 6, col 9→14)
+  {r:13,c:19},{r:13,c:21},{r:13,c:23},{r:13,c:25},{r:13,c:27},{r:13,c:29},
+  // 24-25: 右边缘 (visual col 14, row 7→8) — 25=蓝方 HOME_ENTRY
+  {r:15,c:29},{r:17,c:29},
+  // 26-30: 蓝方出发 (visual row 8, col 13→9)
+  {r:17,c:27},{r:17,c:25},{r:17,c:23},{r:17,c:21},{r:17,c:19},
+  // 31-36: 右下行 (visual col 8, row 9→14)
+  {r:19,c:17},{r:21,c:17},{r:23,c:17},{r:25,c:17},{r:27,c:17},{r:29,c:17},
+  // 37-38: 底横 (visual row 14, col 7→6) — 38=绿方 HOME_ENTRY
+  {r:29,c:15},{r:29,c:13},
+  // 39-43: 绿方出发 (visual col 6, row 13→9)
+  {r:27,c:13},{r:25,c:13},{r:23,c:13},{r:21,c:13},{r:19,c:13},
+  // 44-49: 左臂底横 (visual row 8, col 5→0)
+  {r:17,c:11},{r:17,c:9},{r:17,c:7},{r:17,c:5},{r:17,c:3},{r:17,c:1},
+  // 50-51: 左边缘 (visual col 0, row 7→6) — 51=红方 HOME_ENTRY
+  {r:15,c:1},{r:13,c:1}
 ];
 
-// 玩家起始格索引
-// 红:0 黄:12 蓝:23 绿:36
-const P_START = [0, 12, 23, 36];
-// HOME_ENTRY：走过该格后进入终点跑道（各玩家起始idx的前一格，绕回）
-const P_HOME_ENTRY = [46, 11, 22, 35];
+// 玩家起始格索引：四方均匀间隔 13 格
+const P_START = [0, 13, 26, 39];
+// HOME_ENTRY：各玩家起始 idx 的前一格（绕回 52-cell loop）
+const P_HOME_ENTRY = [51, 12, 25, 38];
 
 const DISPLAY_PATH = LUDO_OUTER;
 
-// 终点道坐标（显示用）
+// 终点跑道坐标（5 格/家，第 5 格 = 终点）
 const HOME_DISPLAY = [
-  [{r:5,c:14},{r:7,c:14},{r:9,c:14},{r:11,c:14},{r:13,c:14}],                       // 红
-  [{r:3,c:14},{r:14,c:26},{r:14,c:24},{r:14,c:22},{r:14,c:20},{r:14,c:18}],         // 黄
-  [{r:14,c:16},{r:14,c:14},{r:14,c:12},{r:14,c:10},{r:14,c:8}],                     // 蓝
-  [{r:16,c:14},{r:18,c:14},{r:20,c:14},{r:22,c:14},{r:24,c:14}],                    // 绿
+  [{r:15,c:3},{r:15,c:5},{r:15,c:7},{r:15,c:9},{r:15,c:11}],    // 红：左臂中横向右
+  [{r:3,c:15},{r:5,c:15},{r:7,c:15},{r:9,c:15},{r:11,c:15}],    // 黄：上臂中竖向下
+  [{r:15,c:27},{r:15,c:25},{r:15,c:23},{r:15,c:21},{r:15,c:19}],// 蓝：右臂中横向左
+  [{r:27,c:15},{r:25,c:15},{r:23,c:15},{r:21,c:15},{r:19,c:15}],// 绿：下臂中竖向上
 ];
 
-// 安全格索引（出发格 0/12/23/36 + 其余路径关键格）
-const SAFE_IDX = [0, 12, 23, 36, 8, 13, 21, 26, 34, 39];
+// 安全格：4 个出发点 + 4 个 star（各 +8 从 start 起）
+const SAFE_IDX = [0, 13, 26, 39, 8, 21, 34, 47];
 
 // ============================================================
 // DRAW BOARD
@@ -1012,12 +1029,14 @@ function nextPos(pc, dice) {
   const heRel = (homeEntry - start + L) % L;
   const newRel = rel + dice;
 
-  if(newRel > heRel + 1) {
-    // 进入终点道
-    const hp = newRel - heRel - 2;
-    if(hp > 4) return null; // 超出终点
-    if(hp === 4) return {pos:-2, home:true, homePos:5, finished:true}; // 到达终点
-    return {pos:-2, home:true, homePos:hp};
+  // B7: 从 HOME_ENTRY 掷 1 即进入跑道；hp = lane.length-1 时到达终点
+  if(newRel >= heRel + 1) {
+    const hp = newRel - heRel - 1;
+    const lane = HOME_DISPLAY[pc.player];
+    if(hp < lane.length) {
+      return {pos:-2, home:true, homePos:hp, finished: hp === lane.length - 1};
+    }
+    return null; // 超过终点不能走，需精确步数
   }
   return {pos:(start + newRel % L) % L, home:false, homePos:-1};
 }
@@ -1053,6 +1072,16 @@ async function doMove(pi, ki) {
     // 吃子
     gs.pieces.forEach(other => {
       if(Number(other.player)===Number(pi)||Number(other.pos)!==Number(pc.pos)||other.finished||Number(other.pos)===-1) return;
+      // B18: 叠子保护 — 目标格上有 2 个或以上同方棋子则不能吃
+      const sameTeamOnCell = gs.pieces.filter(p =>
+        Number(p.player) === Number(other.player) &&
+        Number(p.pos) === Number(other.pos) &&
+        !p.finished
+      );
+      if(sameTeamOnCell.length >= 2){
+        log(`${P_NAMES[other.player]} 叠子保护！💎 无法吃子`);
+        return;
+      }
       const safe = SAFE_IDX.includes(Number(pc.pos));
       if(!safe) {
         // 吃子特效
@@ -1159,7 +1188,7 @@ function rollDice() {
   sndDice();
   showDiceFace(true); // 显示骰子三眼仔表情
   let n=0;
-  const t=setInterval(()=>{
+  const t=setInterval(async ()=>{
     el.textContent=DICE_F[Math.floor(Math.random()*6)+1];
     if(++n>=10) {
       clearInterval(t);
@@ -1170,6 +1199,28 @@ function rollDice() {
       document.getElementById('dice-result').textContent=`掷到了 ${v} 点`;
       showDiceFace(false);
       alienCheer(v); // 三眼仔欢呼特效
+      // B17: 连续 3 个 6 自动跳过本回合
+      if(v === 6) {
+        gs.consecutive6 = (gs.consecutive6 || 0) + 1;
+        if(gs.consecutive6 >= 3) {
+          gs.consecutive6 = 0;
+          gs.diceVal = null;
+          gs.extraRoll = false;
+          toast('连续3个6！跳过本回合');
+          gs.currentPlayer = nextTurn(gs);
+          if(gameMode==='online' && sb && currentRoomId){
+            await sb.from('ludo_actions').insert({
+              room_id:currentRoomId, player_id:myPlayerId,
+              action_type:'roll', dice_val:v,
+              game_state: JSON.parse(JSON.stringify(gs))
+            });
+          }
+          updateUI();
+          return;
+        }
+      } else {
+        gs.consecutive6 = 0;
+      }
       onRolled(v);
     }
   },55);
