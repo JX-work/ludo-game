@@ -328,7 +328,6 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:420px){.players-panel{grid-template-columns:1fr 1fr}.dice{width:52px;height:52px;font-size:28px}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="(function(){var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2';document.head.appendChild(s);})();"></script>
 </head>
 <body>
 <canvas class="stars" id="stars"></canvas>
@@ -503,29 +502,19 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 </div>
 
 <script>
-// SUPABASE
-const SUPABASE_URL='https://hflhagpswbbihqqxfcsr.supabase.co';
-const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmbGhhZ3Bzd2JiaWhxcXhmY3NyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMzY2OTYsImV4cCI6MjA5MzkxMjY5Nn0.4my2Glq4QbbdaFyP_XEzpH8q5DMeprkrOC6cqgsUB8k';
-let sb = null;
-let _sbRetries=0;
-function initSupabase() {
-  try {
-    if(typeof supabase !== 'undefined' && supabase && supabase.createClient) {
-      sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      _sbRetries=0;
-      console.log('✅ Supabase connected');
-    } else if(_sbRetries < 30) {
-      _sbRetries++;
-      setTimeout(initSupabase, 500);
-    } else {
-      console.error('❌ Supabase CDN failed to load after retries');
-    }
-  } catch(e) {
-    console.warn('Supabase init error:', e.message);
-    if(_sbRetries < 30){ _sbRetries++; setTimeout(initSupabase, 1000); }
+// D1-backed API on same origin (see worker/index.js).
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) }
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const j = await res.json(); msg = j.error || msg; } catch(_) {}
+    throw new Error(`${res.status} ${msg}`);
   }
+  return res.status === 204 ? null : res.json();
 }
-initSupabase();
 const ALIENS = [
   {id:"blue_bunny",label:"蓝色兔子",src:"imgs/img_076b0b8f.png"},
   {id:"yellow_shirt",label:"黄色小鸭",src:"imgs/img_3993fe12.png"},
@@ -992,19 +981,30 @@ function refreshColorOpts(takenColors) {
 let setupTarget = 'local';
 let currentRoomId = null;
 let isHost = false;
-let rtChannel = null;
+// Realtime replaced by polling — see subscribeRoom below
+let pollTimer = null;
+let lastActionId = 0;
+let latestPlayers = [];
+let lastRoomStatus = null;
+let lastPlayersSig = '';
 
 // B22: broadcast 失败自动重试 + B10: 给所有动作打上 sender color_idx
+// payload: {room_id, player_id, action_type, dice_val?, piece_idx?, game_state?}
 async function broadcastAction(payload, retries = 3) {
-  if(!sb) return false;
-  if(payload && payload.game_state && typeof payload.game_state === 'object'){
+  if(!payload || !payload.room_id) return false;
+  if(payload.game_state && typeof payload.game_state === 'object'){
     payload = {...payload, game_state: {...payload.game_state, _senderColorIdx: myPlayerIdx}};
   }
+  const {room_id, ...body} = payload;
   for(let i = 0; i < retries; i++){
-    const {error} = await sb.from('ludo_actions').insert(payload);
-    if(!error) return true;
-    console.warn(`[broadcast] 失败 ${i+1}/${retries}：`, error.message||error);
-    await new Promise(r => setTimeout(r, 500 * (i+1)));
+    try {
+      const res = await api(`/api/rooms/${room_id}/actions`, { method:'POST', body: JSON.stringify(body) });
+      if(res && res.action_id != null) lastActionId = Math.max(lastActionId, res.action_id);
+      return true;
+    } catch(e){
+      console.warn(`[broadcast] 失败 ${i+1}/${retries}：`, e.message);
+      await new Promise(r => setTimeout(r, 500 * (i+1)));
+    }
   }
   toast('网络同步失败，请检查连接');
   return false;
@@ -1149,14 +1149,16 @@ async function doMove(pi, ki) {
   const winner = checkWin(gs);
   if(winner >= 0) {
     // B2: 联机模式先广播 win 动作，确保远端玩家看到结算画面（B22 重试）
-    if(gameMode==='online' && sb && currentRoomId){
+    if(gameMode==='online' && currentRoomId){
       await broadcastAction({
         room_id: currentRoomId,
         player_id: myPlayerId,
         action_type: 'win',
         game_state: JSON.parse(JSON.stringify(gs))
       });
-      await sb.from('ludo_rooms').update({game_state:gs,status:'ended'}).eq('id',currentRoomId);
+      // postAction 已 mirror game_state 到 room；这里只标 status='ended'
+      try { await api(`/api/rooms/${currentRoomId}`, { method:'PATCH', body: JSON.stringify({status:'ended'}) }); }
+      catch(e){ console.warn('mark ended failed:', e.message); }
     }
     endGame(winner);
     return;
@@ -1170,15 +1172,13 @@ async function doMove(pi, ki) {
     gs.phase='roll';
   }
 
-  // 联机广播移动动作（B22 重试）
-  if(gameMode==='online' && sb && currentRoomId){
+  // 联机广播移动动作（B22 重试）— postAction 顺手把 game_state 镜像到 room
+  if(gameMode==='online' && currentRoomId){
     await broadcastAction({
       room_id: currentRoomId, player_id: myPlayerId,
       action_type: 'move', piece_idx: ki,
       game_state: JSON.parse(JSON.stringify(gs))
     });
-    // 同步房间游戏状态
-    await sb.from('ludo_rooms').update({game_state:gs}).eq('id',currentRoomId);
   }
 
   drawBoard(gs); updateUI();
@@ -1247,7 +1247,7 @@ function rollDice() {
           gs.extraRoll = false;
           toast('连续3个6！跳过本回合');
           gs.currentPlayer = nextTurn(gs);
-          if(gameMode==='online' && sb && currentRoomId){
+          if(gameMode==='online' && currentRoomId){
             await broadcastAction({
               room_id:currentRoomId, player_id:myPlayerId,
               action_type:'roll', dice_val:v,
@@ -1274,7 +1274,7 @@ async function onRolled(v) {
 
   // Helper: broadcast a deep-copy snapshot of gs（B22 重试）
   async function broadcastRoll() {
-    if(gameMode==='online' && sb && currentRoomId){
+    if(gameMode==='online' && currentRoomId){
       const snap = JSON.parse(JSON.stringify(gs));
       console.log('[broadcastRoll] currentPlayer:', snap.currentPlayer, 'phase:', snap.phase);
       await broadcastAction({
@@ -1473,13 +1473,13 @@ async function joinByCode(){
 async function loadRooms(){
   const g=document.getElementById('rooms-grid');
   g.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-dim)">扫描中... <span class="spinner"></span></div>';
-  if(!sb){g.innerHTML=demoRooms();return;}
-  const {data,error}=await sb.from('ludo_rooms').select('*,ludo_players(id)').eq('status','waiting').order('created_at',{ascending:false}).limit(20);
-  if(error||!data){g.innerHTML=demoRooms();return;}
+  let data;
+  try { data = await api('/api/rooms'); }
+  catch(e){ console.warn('loadRooms:', e.message); g.innerHTML=demoRooms(); return; }
   // Auto-delete orphaned rooms (host left without cleaning up)
-  const orphans=data.filter(r=>!r.ludo_players||r.ludo_players.length===0);
-  orphans.forEach(r=>sb.from('ludo_rooms').delete().eq('id',r.id).then(()=>{}));
-  const live=data.filter(r=>r.ludo_players&&r.ludo_players.length>0);
+  const orphans=data.filter(r=>!r.player_count);
+  orphans.forEach(r=>{ api(`/api/rooms/${r.id}`, {method:'DELETE'}).catch(()=>{}); });
+  const live=data.filter(r=>r.player_count>0);
   const createCard='<div class="create-card" onclick="openCreateRoom()">＋ 创建新房间</div>';
   if(!live.length){g.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text-dim)">暂无房间</div>'+createCard;return;}
   const cards=live.map(r=>{
@@ -1488,18 +1488,14 @@ async function loadRooms(){
     return `<div class="room-card" onclick="joinOnlineRoom('${r.id}')">
       ${delBtn}
       <div class="room-card-head"><span class="room-name">${esc(r.name)}</span><span class="badge">等待中</span></div>
-      <div class="room-meta">${r.max_players}人对战 · ${r.ludo_players.length}人已加入</div>
+      <div class="room-meta">${r.max_players}人对战 · ${r.player_count}人已加入</div>
     </div>`;
   }).join('');
   g.innerHTML=cards+createCard;
 }
 async function deleteRoom(rid){
-  if(!sb){toast('Supabase未连接');return;}
-  const {error:e1}=await sb.from('ludo_players').delete().eq('room_id',rid);
-  if(e1){toast('删除失败：'+e1.message);return;}
-  const {error:e2}=await sb.from('ludo_rooms').delete().eq('id',rid);
-  if(e2){toast('删除失败：'+e2.message);return;}
-  toast('房间已删除');
+  try { await api(`/api/rooms/${rid}`, {method:'DELETE'}); toast('房间已删除'); }
+  catch(e){ toast('删除失败：'+e.message); return; }
   loadRooms();
 }
 function demoRooms(){
@@ -1512,45 +1508,40 @@ function demoRooms(){
 function openCreateRoom(){document.getElementById('room-name-input').value=myNick+'的棋局';document.getElementById('create-overlay').classList.remove('hidden');}
 function closeCreateRoom(){document.getElementById('create-overlay').classList.add('hidden');}
 async function createRoom(){
-  if(!sb){ toast('Supabase未连接'); return; }
   closeCreateRoom();
   const name = document.getElementById('room-name-input').value.trim() || '新棋局';
   const maxP = parseInt(document.getElementById('room-players').value);
   const rid = Math.random().toString(36).slice(2,10);
-  const {error} = await sb.from('ludo_rooms').insert({
-    id:rid, name, host_id:myPlayerId,
-    status:'waiting', max_players:maxP,
-    current_player:0, game_state:null
-  });
-  if(error){ toast('创建失败：'+error.message); return; }
+  try {
+    await api('/api/rooms', { method:'POST', body: JSON.stringify({id:rid, name, host_id:myPlayerId, max_players:maxP}) });
+  } catch(e){ toast('创建失败：'+e.message); return; }
   isHost = true;
   await joinOnlineRoom(rid);
 }
 
 async function joinOnlineRoom(rid){
-  if(!sb){ toast('Supabase未连接'); return; }
   if(!myNick){ openSetup('online'); return; }
-  const {data:room, error} = await sb.from('ludo_rooms').select('*,ludo_players(*)').eq('id',rid).single();
-  if(error||!room){ toast('房间不存在'); return; }
-  if(room.status!=='waiting'){ toast('游戏已开始，无法加入'); return; }
+  let room;
+  try { room = await api(`/api/rooms/${rid}`); }
+  catch(e){ toast('房间不存在'); return; }
+  if(room.status!=='waiting' && !room.game_state){ toast('游戏已结束'); return; }
   const players = room.ludo_players||[];
-  if(players.length >= room.max_players){ toast('房间已满！'); return; }
+  if(room.status==='waiting' && players.length >= room.max_players && !players.find(p=>p.id===myPlayerId)){
+    toast('房间已满！'); return;
+  }
   const existing = players.find(p=>p.id===myPlayerId);
   const playerIdx = existing ? existing.player_idx : players.length;
   const colorIdx  = existing ? existing.color_idx  : (myColorIdx >= 0 ? myColorIdx : playerIdx);
   if(!existing){
-    const {error:pe} = await sb.from('ludo_players').upsert({
-      id:myPlayerId, room_id:rid,
-      nickname:myNick, avatar_id:myAvatarId,
-      color_idx:colorIdx, player_idx:colorIdx, is_ready:false
-    },{onConflict:'id'});
-    if(pe){ toast('加入失败：'+pe.message); return; }
+    try {
+      await api(`/api/rooms/${rid}/join`, { method:'POST', body: JSON.stringify({
+        id:myPlayerId, nickname:myNick, avatar_id:myAvatarId,
+        color_idx:colorIdx, player_idx:colorIdx, is_ready:false
+      })});
+    } catch(e){ toast('加入失败：'+e.message); return; }
   }
-  // Re-fetch color_idx from DB — always use color_idx, never fall back to join order
-  const {data:myRec} = await sb.from('ludo_players').select('color_idx').eq('id',myPlayerId).eq('room_id',rid).single();
-  const confirmedColorIdx = myRec?.color_idx ?? myColorIdx ?? 0;
-  currentRoomId=rid; myPlayerIdx=confirmedColorIdx; gameMode='online';
-  console.log('[join] myPlayerIdx(color_idx):', confirmedColorIdx, 'myPlayerId:', myPlayerId.slice(-6));
+  currentRoomId=rid; myPlayerIdx=colorIdx; gameMode='online';
+  console.log('[join] myPlayerIdx(color_idx):', colorIdx, 'myPlayerId:', myPlayerId.slice(-6));
   showScreen('game');
   document.getElementById('room-code-bar').style.display='flex';
   document.getElementById('room-code-val').textContent=rid.toUpperCase();
@@ -1558,13 +1549,12 @@ async function joinOnlineRoom(rid){
   if(room.game_state){
     gs=normalizeGs(room.game_state);
     // B21: 用实际加入的玩家数（activePlayers），不要直接用 max_players
-    numPlayers = (gs && gs.activePlayers?.length) || (room.ludo_players?.length) || room.max_players;
+    numPlayers = (gs && gs.activePlayers?.length) || players.length || room.max_players;
     document.getElementById('board-wrap').style.display='flex';
     drawBoard(gs); updateUI(); initGuardians();
     log('重新连接游戏中...');
   } else {
-    const fresh = await sb.from('ludo_rooms').select('*,ludo_players(*)').eq('id',rid).single();
-    showWaitingRoom(fresh.data||room);
+    showWaitingRoom(room);
   }
   subscribeRoom(rid);
 }
@@ -1620,18 +1610,22 @@ function createWaitDiv(){
 }
 
 async function hostStartGame(){
-  if(!sb||!currentRoomId) return;
-  const {data:players} = await sb.from('ludo_players').select('*').eq('room_id',currentRoomId).order('player_idx');
-  if(!players||players.length<2){ toast('至少需要2人！'); return; }
-  const activePlayers = players.map(p=>p.color_idx!=null?p.color_idx:p.player_idx).sort((a,b)=>a-b);
+  if(!currentRoomId) return;
+  let room;
+  try { room = await api(`/api/rooms/${currentRoomId}`); }
+  catch(e){ toast('开始失败：'+e.message); return; }
+  const players = room.ludo_players || [];
+  if(players.length<2){ toast('至少需要2人！'); return; }
+  const activePlayers = players.map(p=>Number(p.color_idx!=null?p.color_idx:p.player_idx)).sort((a,b)=>a-b);
   numPlayers=activePlayers.length;
   gs=newGame(activePlayers);
   const pd=new Array(4).fill(null);
-  players.forEach(p=>{ const ci=p.color_idx!=null?p.color_idx:p.player_idx; pd[ci]={name:p.nickname,src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,id:p.id}; });
+  players.forEach(p=>{ const ci=Number(p.color_idx!=null?p.color_idx:p.player_idx); pd[ci]={name:p.nickname,src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,id:p.id}; });
   localStorage.setItem('ludo_players',JSON.stringify(pd));
-  const {error} = await sb.from('ludo_rooms').update({status:'playing',game_state:gs}).eq('id',currentRoomId);
-  if(error){ toast('开始失败：'+error.message); return; }
-  // Show board immediately for host (don't rely solely on realtime)
+  try {
+    await api(`/api/rooms/${currentRoomId}`, { method:'PATCH', body: JSON.stringify({status:'playing', game_state:gs}) });
+  } catch(e){ toast('开始失败：'+e.message); return; }
+  // Show board immediately for host (don't rely solely on polling)
   const waitDiv=document.getElementById('online-wait');
   if(waitDiv) waitDiv.style.display='none';
   const bw=document.getElementById('board-wrap');
@@ -1643,53 +1637,77 @@ async function hostStartGame(){
   });
 }
 
+// Populate ludo_players localStorage from a players array (poll or one-shot fetch).
+function populatePd(players){
+  if(!players || !players.length) return;
+  const pd=new Array(4).fill(null);
+  players.forEach(p=>{
+    const ci=Number(p.color_idx!=null?p.color_idx:p.player_idx);
+    pd[ci]={name:p.nickname,src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,id:p.id};
+  });
+  localStorage.setItem('ludo_players',JSON.stringify(pd));
+}
+
+// Poll-based replacement for Supabase Realtime (D1 has no push channel).
+// Every ~1.2s: fetch room+players snapshot + any actions with id > lastActionId.
 function subscribeRoom(rid){
-  if(rtChannel&&sb) sb.removeChannel(rtChannel);
-  if(!sb) return;
-  rtChannel = sb.channel('ludo:'+rid)
-    .on('postgres_changes',{event:'*',schema:'public',table:'ludo_players',filter:'room_id=eq.'+rid},async()=>{
-      const {data:room} = await sb.from('ludo_rooms').select('*,ludo_players(*)').eq('id',rid).single();
-      if(room&&room.status==='waiting') showWaitingRoom(room);
-      // B11: 房间玩家变化时刷新颜色可选状态（排除自己已占的色）
-      if(room){
-        const taken = (room.ludo_players||[]).filter(p=>p.id!==myPlayerId).map(p=>Number(p.color_idx));
-        refreshColorOpts(taken);
+  if(pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  lastActionId = 0; latestPlayers = []; lastRoomStatus = null; lastPlayersSig = '';
+
+  const tick = async () => {
+    if(currentRoomId !== rid){
+      if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+      return;
+    }
+    let data;
+    try { data = await api(`/api/rooms/${rid}/poll?since=${lastActionId}`); }
+    catch(e){ console.warn('[poll]', e.message); return; }
+
+    const {room, players, actions} = data;
+    latestPlayers = players || [];
+
+    // Player list diff -> waiting-room UI + color picker + panel
+    const sig = latestPlayers.map(p=>`${p.id}:${p.color_idx}:${p.nickname}`).sort().join('|');
+    if(sig !== lastPlayersSig){
+      lastPlayersSig = sig;
+      if(room.status === 'waiting'){
+        showWaitingRoom({...room, ludo_players: latestPlayers, max_players: room.max_players});
       }
+      const taken = latestPlayers.filter(p=>p.id!==myPlayerId).map(p=>Number(p.color_idx));
+      refreshColorOpts(taken);
       renderPanel();
-    })
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'ludo_actions',filter:'room_id=eq.'+rid},pl=>{
-      if(pl.new.player_id===myPlayerId) return;
-      handleRemoteAction(pl.new);
-    })
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'ludo_rooms',filter:'id=eq.'+rid},pl=>{
-      const room=pl.new;
-      if(room.status==='playing'){
+    }
+
+    // Room status transition: waiting -> playing (game start for non-host)
+    if(lastRoomStatus !== room.status){
+      const wasNull = lastRoomStatus === null;
+      lastRoomStatus = room.status;
+      if(!wasNull && room.status === 'playing' && room.game_state){
         const waitDiv=document.getElementById('online-wait');
         if(waitDiv) waitDiv.style.display='none';
         const bw=document.getElementById('board-wrap');
         if(bw) bw.style.display='flex';
-        if(room.game_state){
-          gs=normalizeGs(room.game_state); numPlayers=gs.activePlayers?.length||gs.players||4;
-          sb.from('ludo_players').select('*').eq('room_id',rid).order('player_idx').then(({data})=>{
-            if(data){
-              const pd=new Array(4).fill(null);
-              data.forEach(p=>{ const ci=p.color_idx!=null?p.color_idx:p.player_idx; pd[ci]={name:p.nickname,src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,id:p.id}; });
-              localStorage.setItem('ludo_players',JSON.stringify(pd));
-            }
-            drawBoard(gs); updateUI(); initGuardians();
-            log('游戏开始！掷到6才能出基地 🎲');
-          });
-        }
+        gs = normalizeGs(room.game_state);
+        numPlayers = gs.activePlayers?.length || gs.players || 4;
+        populatePd(latestPlayers);
+        const myRec = latestPlayers.find(p=>p.id===myPlayerId);
+        if(myRec && myRec.color_idx != null) myPlayerIdx = Number(myRec.color_idx);
+        drawBoard(gs); updateUI(); initGuardians();
+        log('游戏开始！掷到6才能出基地 🎲');
       }
-    })
-    .subscribe((status,err)=>{
-      console.log('🔌 realtime status:', status, err||'');
-      if(status==='SUBSCRIBED') console.log('✅ Room subscribed:', rid);
-      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
-        console.error('❌ Channel error, retrying in 3s:', err);
-        setTimeout(()=>{ if(currentRoomId===rid) subscribeRoom(rid); }, 3000);
-      }
-    });
+    }
+
+    // Apply new actions in order, skipping own
+    for(const a of actions){
+      if(a.id > lastActionId) lastActionId = a.id;
+      if(a.player_id === myPlayerId) continue;
+      handleRemoteAction(a);
+    }
+  };
+
+  tick();
+  pollTimer = setInterval(tick, 1200);
+  console.log('🔄 polling room:', rid);
 }
 
 function handleRemoteAction(action){
@@ -1699,30 +1717,16 @@ function handleRemoteAction(action){
     gs=normalizeGs(action.game_state); numPlayers=gs.activePlayers?.length||Number(gs.players)||4;
     // B19: 远端 restart 时隐藏结算 overlay
     document.getElementById('end-overlay').classList.add('hidden');
-    // Fetch all players to populate ludo_players localStorage, then draw
-    if(gameMode==='online' && sb && currentRoomId){
-      sb.from('ludo_players').select('*').eq('room_id',currentRoomId).then(({data})=>{
-        if(data){
-          const pd=new Array(4).fill(null);
-          data.forEach(p=>{ const ci=p.color_idx!=null?p.color_idx:p.player_idx; pd[ci]={name:p.nickname,src:(ALIENS.find(a=>a.id===p.avatar_id)||ALIENS[0]).src,id:p.id}; });
-          localStorage.setItem('ludo_players',JSON.stringify(pd));
-          const myRec=data.find(p=>p.id===myPlayerId);
-          if(myRec?.color_idx!=null) myPlayerIdx=myRec.color_idx;
-          console.log('[remote start] pd set, myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
-        }
-        const waitDiv=document.getElementById('online-wait');
-        if(waitDiv) waitDiv.style.display='none';
-        const bw=document.getElementById('board-wrap');
-        if(bw) bw.style.display='flex';
-        drawBoard(gs); updateUI(); initGuardians();
-      });
-    } else {
-      const waitDiv=document.getElementById('online-wait');
-      if(waitDiv) waitDiv.style.display='none';
-      const bw=document.getElementById('board-wrap');
-      if(bw) bw.style.display='flex';
-      drawBoard(gs); updateUI(); initGuardians();
-    }
+    // latestPlayers is kept fresh by the poll loop
+    populatePd(latestPlayers);
+    const myRec = latestPlayers.find(p=>p.id===myPlayerId);
+    if(myRec && myRec.color_idx != null) myPlayerIdx = Number(myRec.color_idx);
+    console.log('[remote start] pd set, myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
+    const waitDiv=document.getElementById('online-wait');
+    if(waitDiv) waitDiv.style.display='none';
+    const bw=document.getElementById('board-wrap');
+    if(bw) bw.style.display='flex';
+    drawBoard(gs); updateUI(); initGuardians();
     return;
   }
   if(!action.game_state) return;
@@ -1806,22 +1810,17 @@ function handleRemoteAction(action){
 // UTILS
 // ============================================================
 async function leaveGame(){
-  if(rtChannel && sb){ sb.removeChannel(rtChannel); rtChannel=null; }
+  if(pollTimer){ clearInterval(pollTimer); pollTimer=null; }
   // Capture state before resetting
   const rid = currentRoomId;
   const wasHost = isHost;
   const wasOnline = gameMode === 'online';
   gs=null; gameMode='local'; isHost=false; currentRoomId=null;
-  if(wasOnline && sb && rid){
-    if(wasHost){
-      const {error:e1} = await sb.from('ludo_players').delete().eq('room_id',rid);
-      if(e1) console.error('delete players failed:', e1.message);
-      const {error:e2} = await sb.from('ludo_rooms').delete().eq('id',rid);
-      if(e2) console.error('delete room failed:', e2.message);
-    } else {
-      const {error:e3} = await sb.from('ludo_players').delete().eq('id',myPlayerId).eq('room_id',rid);
-      if(e3) console.error('delete player failed:', e3.message);
-    }
+  if(wasOnline && rid){
+    try {
+      if(wasHost) await api(`/api/rooms/${rid}`, {method:'DELETE'});
+      else        await api(`/api/rooms/${rid}/players/${myPlayerId}`, {method:'DELETE'});
+    } catch(e){ console.error('leave cleanup failed:', e.message); }
   }
   const waitDiv=document.getElementById('online-wait');
   if(waitDiv) waitDiv.style.display='none';
@@ -1834,11 +1833,12 @@ async function restartGame(){
   document.getElementById('end-overlay').classList.add('hidden');
   if(gameMode==='local'){ startLocal(numPlayers); return; }
   // B19: 联机模式重置游戏状态并广播给所有玩家
-  if(gameMode==='online' && sb && currentRoomId && gs && gs.activePlayers){
+  if(gameMode==='online' && currentRoomId && gs && gs.activePlayers){
     const activePlayers = gs.activePlayers.map(Number);
     const newGs = newGame(activePlayers);
-    const {error} = await sb.from('ludo_rooms').update({status:'playing',game_state:newGs}).eq('id',currentRoomId);
-    if(error){ toast('重启失败：'+error.message); return; }
+    try {
+      await api(`/api/rooms/${currentRoomId}`, { method:'PATCH', body: JSON.stringify({status:'playing', game_state:newGs}) });
+    } catch(e){ toast('重启失败：'+e.message); return; }
     await broadcastAction({
       room_id: currentRoomId, player_id: myPlayerId,
       action_type: 'start', game_state: newGs
