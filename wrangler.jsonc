@@ -1,14 +1,23 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ludo-game",
+  "main": "worker/index.js",
   "compatibility_date": "2026-06-08",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "binding": "ASSETS"
   },
   "compatibility_flags": [
     "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ludo-game",
+      "database_id": "8d9bd778-83fc-4cc3-b760-69db9c30267b"
+    }
   ]
 }

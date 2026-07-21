@@ -12,8 +12,11 @@ wrangler.jsonc
 # python dev-time helpers (compress/fix_board scripts)
 *.py
 
-# Supabase schema (DB setup, not runtime)
+# D1 schema (DB setup, not runtime)
 schema.sql
+
+# Worker source (bundled by wrangler, don't ship as static asset)
+worker/
 
 # node_modules if it ever appears
 node_modules/

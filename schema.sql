@@ -1,50 +1,40 @@
--- 三眼仔飞行棋 数据库建表脚本
--- 在 Supabase SQL Editor 里粘贴并运行即可
+-- 三眼仔飞行棋 D1 (SQLite) schema
+-- 建表: wrangler d1 execute ludo-game --remote --file=schema.sql
 
 CREATE TABLE IF NOT EXISTS ludo_rooms (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  host_id TEXT NOT NULL,
-  status TEXT DEFAULT 'waiting',
-  max_players INT DEFAULT 4,
-  current_player INT DEFAULT 0,
-  game_state JSONB DEFAULT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  host_id        TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'waiting',
+  max_players    INTEGER NOT NULL DEFAULT 4,
+  current_player INTEGER NOT NULL DEFAULT 0,
+  game_state     TEXT,
+  created_at     INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at     INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 CREATE TABLE IF NOT EXISTS ludo_players (
-  id TEXT PRIMARY KEY,
-  room_id TEXT REFERENCES ludo_rooms(id) ON DELETE CASCADE,
-  nickname TEXT NOT NULL,
-  avatar_id TEXT NOT NULL,
-  color_idx INT NOT NULL,
-  player_idx INT NOT NULL,
-  is_ready BOOLEAN DEFAULT FALSE,
-  joined_at TIMESTAMPTZ DEFAULT NOW()
+  id         TEXT PRIMARY KEY,
+  room_id    TEXT NOT NULL REFERENCES ludo_rooms(id) ON DELETE CASCADE,
+  nickname   TEXT NOT NULL,
+  avatar_id  TEXT NOT NULL,
+  color_idx  INTEGER NOT NULL,
+  player_idx INTEGER NOT NULL,
+  is_ready   INTEGER NOT NULL DEFAULT 0,
+  joined_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 CREATE TABLE IF NOT EXISTS ludo_actions (
-  id BIGSERIAL PRIMARY KEY,
-  room_id TEXT REFERENCES ludo_rooms(id) ON DELETE CASCADE,
-  player_id TEXT NOT NULL,
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  room_id     TEXT NOT NULL,
+  player_id   TEXT NOT NULL,
   action_type TEXT NOT NULL,
-  dice_val INT,
-  piece_idx INT,
-  game_state JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  dice_val    INTEGER,
+  piece_idx   INTEGER,
+  game_state  TEXT,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
-ALTER TABLE ludo_rooms   REPLICA IDENTITY FULL;
-ALTER TABLE ludo_players REPLICA IDENTITY FULL;
-ALTER TABLE ludo_actions REPLICA IDENTITY FULL;
-
-ALTER TABLE ludo_rooms   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ludo_players ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ludo_actions ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow all" ON ludo_rooms   FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all" ON ludo_players FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all" ON ludo_actions FOR ALL USING (true) WITH CHECK (true);
-
-ALTER PUBLICATION supabase_realtime ADD TABLE ludo_rooms, ludo_players, ludo_actions;
+CREATE INDEX IF NOT EXISTS idx_players_room   ON ludo_players(room_id);
+CREATE INDEX IF NOT EXISTS idx_actions_room   ON ludo_actions(room_id, id);
+CREATE INDEX IF NOT EXISTS idx_rooms_status   ON ludo_rooms(status, created_at DESC);
