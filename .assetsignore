@@ -1,0 +1,19 @@
+# git internals
+.git/
+.gitignore
+
+# wrangler local cache/state (contains account metadata)
+.wrangler/
+
+# wrangler config + this ignore file
+wrangler.jsonc
+.assetsignore
+
+# python dev-time helpers (compress/fix_board scripts)
+*.py
+
+# Supabase schema (DB setup, not runtime)
+schema.sql
+
+# node_modules if it ever appears
+node_modules/
