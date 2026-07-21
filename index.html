@@ -1010,12 +1010,33 @@ async function broadcastAction(payload, retries = 3) {
   return false;
 }
 
+// JSONB 反序列化后数字字段可能变字符串。所有 gs 入口(本地新建/远端接收)都过一遍这个,
+// 避免下游 `pc.pos === -1` / `.diceVal === 6` / `SAFE_IDX.includes(pos)` 之类严格 === 踩雷。
+function normalizeGs(g){
+  if(!g || typeof g !== 'object') return g;
+  if(Array.isArray(g.activePlayers)) g.activePlayers = g.activePlayers.map(Number);
+  if(g.currentPlayer != null) g.currentPlayer = Number(g.currentPlayer);
+  if(g.players != null) g.players = Number(g.players);
+  if(g.diceVal != null) g.diceVal = Number(g.diceVal);
+  if(Array.isArray(g.pieces)){
+    g.pieces = g.pieces.map(pc => ({
+      ...pc,
+      player: Number(pc.player),
+      idx: Number(pc.idx),
+      pos: Number(pc.pos),
+      homePos: pc.homePos != null ? Number(pc.homePos) : -1,
+      finished: Boolean(pc.finished)
+    }));
+  }
+  return g;
+}
+
 function newGame(activePlayers) {
   const pieces = [];
   for(let p of activePlayers) for(let k=0;k<4;k++) {
     pieces.push({player:p, idx:k, pos:-1, finished:false, homePos:-1});
   }
-  return {activePlayers, players:activePlayers.length, currentPlayer:activePlayers[0], pieces, diceVal:null, phase:'roll', winner:null, log:[]};
+  return normalizeGs({activePlayers, players:activePlayers.length, currentPlayer:activePlayers[0], pieces, diceVal:null, phase:'roll', winner:null, log:[]});
 }
 
 function nextTurn(gs) {
@@ -1535,7 +1556,7 @@ async function joinOnlineRoom(rid){
   document.getElementById('room-code-val').textContent=rid.toUpperCase();
   document.getElementById('board-wrap').style.display='none';
   if(room.game_state){
-    gs=room.game_state;
+    gs=normalizeGs(room.game_state);
     // B21: 用实际加入的玩家数（activePlayers），不要直接用 max_players
     numPlayers = (gs && gs.activePlayers?.length) || (room.ludo_players?.length) || room.max_players;
     document.getElementById('board-wrap').style.display='flex';
@@ -1648,7 +1669,7 @@ function subscribeRoom(rid){
         const bw=document.getElementById('board-wrap');
         if(bw) bw.style.display='flex';
         if(room.game_state){
-          gs=room.game_state; numPlayers=gs.activePlayers?.length||gs.players||4;
+          gs=normalizeGs(room.game_state); numPlayers=gs.activePlayers?.length||gs.players||4;
           sb.from('ludo_players').select('*').eq('room_id',rid).order('player_idx').then(({data})=>{
             if(data){
               const pd=new Array(4).fill(null);
@@ -1675,7 +1696,7 @@ function handleRemoteAction(action){
   console.log('[remote]', action.action_type, 'from:', action.player_id?.slice(-6), 'has_gs:', !!action.game_state);
   if(action.action_type==='start'){
     if(!action.game_state) return;
-    gs=action.game_state; numPlayers=gs.activePlayers?.length||Number(gs.players)||4;
+    gs=normalizeGs(action.game_state); numPlayers=gs.activePlayers?.length||Number(gs.players)||4;
     // B19: 远端 restart 时隐藏结算 overlay
     document.getElementById('end-overlay').classList.add('hidden');
     // Fetch all players to populate ludo_players localStorage, then draw
@@ -1707,7 +1728,7 @@ function handleRemoteAction(action){
   if(!action.game_state) return;
   if(action.action_type==='win'){
     // B2: 接收远端胜利广播，本地也触发结算
-    gs=action.game_state;
+    gs=normalizeGs(action.game_state);
     const w = checkWin(gs);
     if(w >= 0){ drawBoard(gs); endGame(w); }
     return;
@@ -1738,14 +1759,14 @@ function handleRemoteAction(action){
             el.textContent = DICE_F[action.dice_val] || '🎲';
             const dr = document.getElementById('dice-result');
             if(dr) dr.textContent = P_NAMES[prev] + ' 掷了 ' + action.dice_val + ' 点';
-            gs = action.game_state;
+            gs = normalizeGs(action.game_state);
             numPlayers = gs.activePlayers?.length || Number(gs.players) || 4;
             console.log('[handleRemoteAction roll] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
             drawBoard(gs); updateUI();
           }
         }, 55);
       } else {
-        gs = action.game_state;
+        gs = normalizeGs(action.game_state);
         numPlayers = gs.activePlayers?.length || Number(gs.players) || 4;
         drawBoard(gs); updateUI();
       }
@@ -1754,7 +1775,7 @@ function handleRemoteAction(action){
 
     // ===== move =====
     const newPieces = action.game_state.pieces || [];
-    gs = action.game_state;
+    gs = normalizeGs(action.game_state);
     numPlayers = gs.activePlayers?.length || Number(gs.players) || 4;
     sndMove();
     console.log('[handleRemoteAction move] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
