@@ -174,6 +174,32 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 @keyframes bannerFlash{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.7;transform:scale(1.04)}}
 .banner-pulse{animation:bannerFlash 0.9s ease-in-out infinite}
 
+/* Piece landing ripple (走棋每步落地) */
+@keyframes pieceRipple{
+  0%{width:16px;height:16px;opacity:0.9}
+  100%{width:56px;height:56px;opacity:0}
+}
+/* Eat-burst radial rays fade+scale */
+@keyframes eatBurst{
+  0%{transform:scale(0.3) rotate(0);opacity:0}
+  25%{transform:scale(1.15) rotate(15deg);opacity:1}
+  100%{transform:scale(1.6) rotate(45deg);opacity:0}
+}
+/* Board shake on eat impact */
+@keyframes boardShake{
+  0%,100%{transform:translate(0,0)}
+  20%{transform:translate(-3px,2px)}
+  40%{transform:translate(3px,-2px)}
+  60%{transform:translate(-2px,-1px)}
+  80%{transform:translate(2px,1px)}
+}
+/* Safe-zone hexagonal shield expansion */
+@keyframes safeShield{
+  0%{transform:translate(-50%,-50%) scale(0.3);opacity:0}
+  30%{transform:translate(-50%,-50%) scale(1.15);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1.4);opacity:0}
+}
+
 /* PLAYERS PANEL */
 .players-panel{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;max-width:500px}
 .player-card{background:rgba(10,17,48,0.8);border:2px solid rgba(255,255,255,0.08);
@@ -750,14 +776,21 @@ function animatePieceJump(px, py) {
   const screenX = rect.left + px * scaleX;
   const screenY = rect.top  + py * scaleY;
 
-  const el = document.createElement('div');
-  el.style.cssText = `position:fixed;left:${screenX}px;top:${screenY}px;
-    width:28px;height:28px;transform:translate(-50%,-50%);
-    background:rgba(255,255,255,0.9);border-radius:50%;
-    z-index:450;pointer-events:none;
-    animation:pieceJump 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards`;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 520);
+  // Landing ripple: 2 expanding concentric rings in player color
+  const cur = gs ? Number(gs.currentPlayer) : 0;
+  const col = P_COLORS[cur] || '#FFD53D';
+  for(let i=0; i<2; i++){
+    setTimeout(() => {
+      const ring = document.createElement('div');
+      ring.style.cssText = `position:fixed;left:${screenX}px;top:${screenY}px;
+        width:16px;height:16px;transform:translate(-50%,-50%);
+        border:2px solid ${col};border-radius:50%;
+        z-index:449;pointer-events:none;opacity:0.9;
+        animation:pieceRipple 0.55s ease-out forwards`;
+      document.body.appendChild(ring);
+      setTimeout(() => ring.remove(), 600);
+    }, i * 120);
+  }
 }
 
 function showEatPopup(){
@@ -766,8 +799,28 @@ function showEatPopup(){
   document.body.appendChild(el);setTimeout(()=>el.remove(),1500);
 }
 
-// 吃子特效：惊吓三眼仔 + 被吃棋子上的惊跳
+// 吃子特效：SVG 爆炸射线 + 白闪 + 保留惊吓三眼仔
 function alienEatEffect(victimScreenX, victimScreenY) {
+  // Radial explosion burst (SVG): 8 colored rays from center + white flash core
+  const burst = document.createElement('div');
+  burst.style.cssText = `position:fixed;left:${victimScreenX-70}px;top:${victimScreenY-70}px;
+    width:140px;height:140px;z-index:502;pointer-events:none;
+    animation:eatBurst 0.7s ease-out forwards`;
+  const rayColors = ['#FFD53D','#F59E0B','#EF4444','#FFD53D','#F59E0B','#EF4444','#FFE066','#FF7A45'];
+  let raysSvg = '';
+  for(let k=0; k<8; k++){
+    const a = k * Math.PI/4;
+    const x2 = 70 + Math.cos(a)*62, y2 = 70 + Math.sin(a)*62;
+    raysSvg += `<line x1="70" y1="70" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${rayColors[k]}" stroke-width="6" stroke-linecap="round" opacity="0.95"/>`;
+  }
+  burst.innerHTML = `<svg viewBox="0 0 140 140" style="width:100%;height:100%">
+    ${raysSvg}
+    <circle cx="70" cy="70" r="14" fill="#fff"/>
+    <circle cx="70" cy="70" r="10" fill="#FFD53D"/>
+  </svg>`;
+  document.body.appendChild(burst);
+  setTimeout(() => burst.remove(), 750);
+
   // 被吃棋子上的惊跳三眼仔
   const scared = document.createElement('img');
   scared.src = IMG_SCARED;
@@ -787,7 +840,7 @@ function alienEatEffect(victimScreenX, victimScreenY) {
   // 震动特效
   const boardEl = document.getElementById('ludo-board');
   if(boardEl) {
-    boardEl.style.animation = 'mineShake 0.35s ease';
+    boardEl.style.animation = 'boardShake 0.35s ease';
     setTimeout(() => boardEl.style.animation = '', 400);
   }
 }
@@ -800,8 +853,8 @@ function alienVictoryEffect(winnerAvatarSrc) {
   document.body.appendChild(light);
   setTimeout(() => light.remove(), 2200);
 
-  // 三眼仔从天而降（15只）
-  for(let i=0;i<18;i++) {
+  // 三眼仔从天而降（12只，减自 18 让画面更清爽）
+  for(let i=0;i<12;i++) {
     setTimeout(() => {
       const alien = document.createElement('img');
       alien.className = 'alien-rain';
@@ -842,27 +895,87 @@ function alienVictoryEffect(winnerAvatarSrc) {
     }, i*30);
   }
 
-  // 胜利者大三眼仔弹出
+  // 胜利者大三眼仔弹出 + 头顶金冠 SVG
   setTimeout(() => {
-    const winner = document.createElement('img');
-    winner.src = winnerAvatarSrc || IMG_CHEER;
-    winner.style.cssText = `position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-      width:180px;height:180px;object-fit:contain;z-index:600;pointer-events:none;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+      width:180px;height:220px;z-index:600;pointer-events:none;
       animation:eatPop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards,bob 1.5s 0.6s ease-in-out infinite`;
-    document.body.appendChild(winner);
-    setTimeout(() => winner.remove(), 4000);
+    wrap.innerHTML = `
+      <svg viewBox="0 0 180 60" style="position:absolute;top:-6px;left:0;width:180px;height:60px">
+        <defs><linearGradient id="crownG" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#FFE066"/>
+          <stop offset="50%" stop-color="#FFD53D"/>
+          <stop offset="100%" stop-color="#B45309"/>
+        </linearGradient></defs>
+        <path d="M40,50 L52,18 L68,38 L90,10 L112,38 L128,18 L140,50 Z" fill="url(#crownG)" stroke="#7c2d12" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="40" y="46" width="100" height="8" fill="#F5A623" stroke="#7c2d12" stroke-width="2" rx="2"/>
+        <circle cx="52" cy="16" r="4.5" fill="#EF4444" stroke="#7c2d12" stroke-width="1.5"/>
+        <circle cx="90" cy="8"  r="5" fill="#3B82F6" stroke="#7c2d12" stroke-width="1.5"/>
+        <circle cx="128" cy="16" r="4.5" fill="#22C55E" stroke="#7c2d12" stroke-width="1.5"/>
+      </svg>
+      <img src="${winnerAvatarSrc || IMG_CHEER}" style="position:absolute;top:44px;left:0;width:180px;height:180px;object-fit:contain"/>
+    `;
+    document.body.appendChild(wrap);
+    setTimeout(() => wrap.remove(), 4000);
   }, 300);
 }
 
-// 安全格提示：小三眼仔守护动画
+// 安全格提示: golden hexagonal shield SVG expanding
 function safeZoneEffect(screenX, screenY) {
   const shield = document.createElement('div');
   shield.style.cssText = `position:fixed;left:${screenX}px;top:${screenY}px;
-    transform:translate(-50%,-50%);font-size:28px;z-index:500;pointer-events:none;
-    animation:eatPop 1s ease forwards`;
-  shield.textContent = '🛡️';
+    width:64px;height:64px;z-index:500;pointer-events:none;
+    animation:safeShield 0.9s ease-out forwards`;
+  shield.innerHTML = `<svg viewBox="0 0 64 64" style="width:100%;height:100%">
+    <defs><radialGradient id="shieldG" cx="50%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="70%" stop-color="#FFD53D"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </radialGradient></defs>
+    <polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="url(#shieldG)" stroke="#B45309" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M20,28 L28,38 L44,22" fill="none" stroke="#B45309" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
   document.body.appendChild(shield);
-  setTimeout(() => shield.remove(), 1100);
+  setTimeout(() => shield.remove(), 950);
+}
+
+// Eaten piece flies back to its base slot (visual, not state-changing).
+// Called from both local doMove and remote move handler right before the
+// piece.pos gets snapped to -1.
+const _BASE_SLOTS_XY = [
+  [{r:2,c:1},{r:2,c:4},{r:5,c:1},{r:5,c:4}],
+  [{r:2,c:24},{r:2,c:27},{r:5,c:24},{r:5,c:27}],
+  [{r:24,c:24},{r:24,c:27},{r:27,c:24},{r:27,c:27}],
+  [{r:24,c:1},{r:24,c:4},{r:27,c:1},{r:27,c:4}],
+];
+function flyPieceHome(pc, fromX, fromY) {
+  const board = document.getElementById('ludo-board');
+  if(!board) return;
+  const slot = _BASE_SLOTS_XY[Number(pc.player)]?.[Number(pc.idx)];
+  if(!slot) return;
+  const rect = board.getBoundingClientRect();
+  const scX = rect.width/600, scY = rect.height/600;
+  const tx = rect.left + (slot.c+0.5)*20*scX;
+  const ty = rect.top  + (slot.r+0.5)*20*scY;
+  const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
+  const src = pd[Number(pc.player)]?.src;
+  if(!src) return;
+  const el = document.createElement('img');
+  el.src = src;
+  el.style.cssText = `position:fixed;left:${fromX}px;top:${fromY}px;
+    width:38px;height:38px;object-fit:contain;border-radius:50%;
+    transform:translate(-50%,-50%);z-index:500;pointer-events:none;
+    transition:left 0.75s cubic-bezier(0.3,0.1,0.25,1),top 0.75s cubic-bezier(0.3,0.1,0.25,1),transform 0.75s ease,opacity 0.75s ease;
+    box-shadow:0 2px 8px rgba(0,0,0,0.4)`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => {
+    el.style.left = tx + 'px';
+    el.style.top  = ty + 'px';
+    el.style.transform = 'translate(-50%,-50%) scale(0.55) rotate(360deg)';
+    el.style.opacity = '0.4';
+  });
+  setTimeout(() => el.remove(), 850);
 }
 
 // 把坐标转成屏幕坐标
@@ -1352,11 +1465,12 @@ async function doMove(pi, ki) {
       }
       const safe = SAFE_IDX.includes(Number(pc.pos));
       if(!safe) {
-        // 吃子特效
+        // 吃子特效 + 被吃棋子飞回基地
         if(other.pos < DISPLAY_PATH.length) {
           const {r,c} = DISPLAY_PATH[other.pos];
           const sc = boardToScreen(r,c);
           alienEatEffect(sc.x, sc.y);
+          flyPieceHome(other, sc.x, sc.y);
         }
         other.pos = -1; other.homePos = -1;
         sndEat(); showEatPopup();
@@ -1435,7 +1549,22 @@ function endGame(winner) {
   
   // 延迟显示结算画面
   setTimeout(() => {
-    document.getElementById('end-winner-img').innerHTML = `<img src="${w.src}" style="width:90px;height:90px;object-fit:contain;animation:bob 1.5s ease-in-out infinite">`;
+    document.getElementById('end-winner-img').innerHTML = `
+      <div style="position:relative;width:120px;height:130px;margin:0 auto">
+        <svg viewBox="0 0 120 40" style="position:absolute;top:-4px;left:0;width:120px;height:40px">
+          <defs><linearGradient id="crownGE" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#FFE066"/>
+            <stop offset="55%" stop-color="#FFD53D"/>
+            <stop offset="100%" stop-color="#B45309"/>
+          </linearGradient></defs>
+          <path d="M20,32 L32,10 L44,22 L60,4 L76,22 L88,10 L100,32 Z" fill="url(#crownGE)" stroke="#7c2d12" stroke-width="2" stroke-linejoin="round"/>
+          <rect x="20" y="28" width="80" height="6" fill="#F5A623" stroke="#7c2d12" stroke-width="1.5" rx="2"/>
+          <circle cx="32" cy="10" r="3" fill="#EF4444" stroke="#7c2d12" stroke-width="1"/>
+          <circle cx="60" cy="4"  r="3.5" fill="#3B82F6" stroke="#7c2d12" stroke-width="1"/>
+          <circle cx="88" cy="10" r="3" fill="#22C55E" stroke="#7c2d12" stroke-width="1"/>
+        </svg>
+        <img src="${w.src}" style="position:absolute;top:32px;left:15px;width:90px;height:90px;object-fit:contain;animation:bob 1.5s ease-in-out infinite">
+      </div>`;
     document.getElementById('end-title').textContent = `🏆 ${w.name} 胜利！`;
     document.getElementById('end-msg').textContent = `恭喜率先将4颗棋子全部送达终点！The Claw chooses you！`;
     document.getElementById('end-overlay').classList.remove('hidden');
@@ -2075,12 +2204,13 @@ function handleRemoteAction(action){
       const op = oldPieces[i];
       if(!op) return;
       const opPos = Number(op.pos), npPos = Number(np.pos);
-      // 被吃：从路径回到基地
+      // 被吃：从路径回到基地(视觉飞回)
       if(opPos >= 0 && opPos < LUDO_OUTER.length && npPos === -1){
         const {r,c} = LUDO_OUTER[opPos];
         const sc = boardToScreen(r, c);
-        if(typeof alienEatEffect === 'function') alienEatEffect(sc.x, sc.y);
-        if(typeof showEatPopup === 'function') showEatPopup();
+        alienEatEffect(sc.x, sc.y);
+        showEatPopup();
+        flyPieceHome(op, sc.x, sc.y);
         sndEat();
       }
       // 移动：路径上位置变化
