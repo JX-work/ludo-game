@@ -48,6 +48,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .nav-btn{background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:var(--r-sm);
   padding:6px 14px;font-size:13px;font-weight:700;color:var(--text-dim);cursor:pointer;font-family:inherit;transition:all 0.2s}
 .nav-btn:hover,.nav-btn.active{background:rgba(167,139,250,0.2);border-color:var(--blue);color:#FFD53D}
+.sound-btn{padding:6px 10px !important;min-width:38px;font-size:15px}
+.sound-btn.muted{opacity:0.5;color:var(--text-low) !important}
 
 .screen{display:none;flex-direction:column;gap:0.75rem;animation:fadeUp 0.2s ease}
 .screen.active{display:flex}
@@ -528,6 +530,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
     <button class="nav-btn active" onclick="showScreen('home')">主页</button>
     <button class="nav-btn" onclick="goLobby()">大厅</button>
     <button class="nav-btn" onclick="showScreen('rules')">规则</button>
+    <button id="sound-toggle" class="nav-btn sound-btn" onclick="toggleSound()" title="音效开关" aria-label="mute"><span id="sound-icon">🔊</span></button>
   </div>
 </nav>
 
@@ -1045,14 +1048,202 @@ const S=600, C=40; // board size, cell size
   draw();
 })();
 
-// Audio
-let _ac;const ga=()=>{if(!_ac)_ac=new(window.AudioContext||window.webkitAudioContext)();return _ac;};
-function beep(f,d,v=0.1){try{const a=ga(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=f;g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
-function sndDice(){beep(400,.05);setTimeout(()=>beep(600,.05),60);setTimeout(()=>beep(900,.1),120);}
-function sndMove(){beep(600,.08,.08);}
-function sndEat(){beep(200,.3,.15);setTimeout(()=>beep(150,.25,.1),100);}
-function sndWin(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.25,.15),i*120));}
-function sndSafe(){beep(800,.12,.1);setTimeout(()=>beep(1000,.12,.1),130);}
+// ============================================================
+// AUDIO — cartoon-tone Web Audio synth (no external assets)
+// ============================================================
+// Design: layer sine + triangle for warmth; each SFX uses an ADSR-ish
+// gain envelope (linear ramp attack, exponential decay to a floor).
+// Master gain gated by mute toggle stored in localStorage.
+const audio = {
+  ctx: null, master: null, bgmNodes: null, bgmInterval: null,
+  muted: localStorage.getItem('ludo_muted') === '1',
+  bgmEnabled: localStorage.getItem('ludo_bgm') === '1',
+  init(){
+    if(this.ctx) return this.ctx;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.muted ? 0 : 0.6;
+      this.master.connect(this.ctx.destination);
+    } catch(e){ console.warn('AudioContext failed:', e.message); }
+    return this.ctx;
+  },
+  resume(){ if(this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+  setMute(m){
+    this.muted = m;
+    localStorage.setItem('ludo_muted', m ? '1' : '0');
+    if(this.master) this.master.gain.setTargetAtTime(m ? 0 : 0.6, this.ctx.currentTime, 0.05);
+  },
+  toggleMute(){ this.setMute(!this.muted); return this.muted; },
+  setBgm(on){
+    this.bgmEnabled = on;
+    localStorage.setItem('ludo_bgm', on ? '1' : '0');
+    if(on) this.startBGM(); else this.stopBGM();
+  },
+  // Core tone: freq → gain envelope → master
+  _tone(freq, dur, {type='sine', vol=0.18, attack=0.006, decay=null, when=0} = {}){
+    if(!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime + when;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    o.connect(g); g.connect(this.master);
+    const dec = decay ?? dur;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + dec);
+    o.start(t); o.stop(t + attack + dec + 0.02);
+  },
+  // ─── SFX ───
+  // 掷骰子: 4-tick rattle rising in pitch
+  dice(){
+    this.init();
+    [440, 580, 720, 900].forEach((f, i) => {
+      this._tone(f, 0.05, {type:'square', vol:0.09, when:i*0.05});
+    });
+    // clatter tail: quick low thud
+    this._tone(180, 0.12, {type:'triangle', vol:0.11, when:0.2});
+  },
+  // 走棋每步: soft warm pluck
+  step(){
+    this.init();
+    this._tone(660, 0.08, {type:'sine', vol:0.14});
+    this._tone(880, 0.06, {type:'triangle', vol:0.06, when:0.005});
+  },
+  // 吃子: comical boing then thud
+  eat(){
+    this.init();
+    // Descending sweep boing
+    if(!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(780, t);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.28);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.35);
+    // Thud
+    this._tone(90, 0.15, {type:'triangle', vol:0.18, when:0.28});
+  },
+  // 进终点跑道 (home entry): warm shimmer chord
+  homeEntry(){
+    this.init();
+    [523, 659, 784].forEach((f,i)=>this._tone(f, 0.25, {type:'sine', vol:0.11, when:i*0.06}));
+  },
+  // 胜利: ascending triumphant arpeggio
+  win(){
+    this.init();
+    [523, 659, 784, 1047, 1319].forEach((f,i)=>{
+      this._tone(f, 0.22, {type:'triangle', vol:0.16, when:i*0.11});
+    });
+    // Sparkle tail
+    this._tone(1568, 0.35, {type:'sine', vol:0.12, when:0.55});
+  },
+  // 按钮点击: crisp short tick
+  click(){
+    this.init();
+    this._tone(1400, 0.03, {type:'square', vol:0.06});
+    this._tone(2000, 0.02, {type:'triangle', vol:0.05, when:0.01});
+  },
+  // 安全格: soft double-chime
+  safe(){
+    this.init();
+    this._tone(880, 0.14, {type:'sine', vol:0.11});
+    this._tone(1108, 0.14, {type:'sine', vol:0.11, when:0.11});
+  },
+  // 轮到你的回合 chime (两音)
+  turnStart(){
+    this.init();
+    this._tone(880, 0.14, {type:'sine', vol:0.12});
+    this._tone(1175, 0.18, {type:'sine', vol:0.11, when:0.11});
+  },
+  // 骰子出 6 特别欢呼音
+  six(){
+    this.init();
+    [880, 1108, 1319, 1760].forEach((f,i)=>this._tone(f, 0.14, {type:'triangle', vol:0.13, when:i*0.06}));
+  },
+  // ─── BGM: minimalist 8-step arp loop, quiet ambient bed ───
+  startBGM(){
+    this.init();
+    if(!this.ctx || this.bgmNodes) return;
+    // Very quiet pad + arpeggio; loops every 3.2s
+    const g = this.ctx.createGain();
+    g.gain.value = 0.045; // deliberately low — background bed
+    g.connect(this.master);
+    this.bgmNodes = { gain: g };
+    const scale = [523, 587, 659, 784, 880, 784, 659, 587]; // C major-ish loop
+    let step = 0;
+    const tick = () => {
+      if(!this.bgmNodes) return;
+      const f = scale[step % scale.length];
+      const t = this.ctx.currentTime;
+      const o = this.ctx.createOscillator();
+      const eg = this.ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      eg.gain.setValueAtTime(0.0001, t);
+      eg.gain.linearRampToValueAtTime(0.7, t + 0.02);
+      eg.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      o.connect(eg); eg.connect(g);
+      o.start(t); o.stop(t + 0.4);
+      step++;
+    };
+    tick();
+    this.bgmInterval = setInterval(tick, 400);
+  },
+  stopBGM(){
+    if(this.bgmInterval){ clearInterval(this.bgmInterval); this.bgmInterval = null; }
+    if(this.bgmNodes){ try { this.bgmNodes.gain.disconnect(); } catch(_){} this.bgmNodes = null; }
+  }
+};
+
+// Legacy shims (existing code calls these) — route to new audio manager
+function sndDice(){ audio.dice(); }
+function sndMove(){ audio.step(); }
+function sndEat(){ audio.eat(); }
+function sndWin(){ audio.win(); }
+function sndSafe(){ audio.safe(); }
+
+// One-time audio init on first user interaction (browsers block autoplay
+// until a gesture happens)
+(() => {
+  const wake = () => {
+    audio.init(); audio.resume();
+    if(audio.bgmEnabled) audio.startBGM();
+    window.removeEventListener('pointerdown', wake);
+    window.removeEventListener('keydown', wake);
+  };
+  window.addEventListener('pointerdown', wake, {once:false});
+  window.addEventListener('keydown', wake, {once:false});
+  // Delegate: click on any .btn-primary/.btn-ghost/.btn-sm/.nav-btn/.copy-btn plays click SFX
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('button');
+    if(!el) return;
+    if(el.matches('.btn-primary, .btn-ghost, .btn-sm, .nav-btn, .copy-btn, .room-del-btn')) {
+      audio.click();
+    }
+  });
+})();
+
+function toggleSound(){
+  const muted = audio.toggleMute();
+  const btn = document.getElementById('sound-toggle');
+  const icon = document.getElementById('sound-icon');
+  if(btn) btn.classList.toggle('muted', muted);
+  if(icon) icon.textContent = muted ? '🔇' : '🔊';
+  // Not muted: play a small tick confirming
+  if(!muted) audio.click();
+}
+// Sync toggle UI to persisted state on load
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('sound-toggle');
+  const icon = document.getElementById('sound-icon');
+  if(btn && audio.muted) btn.classList.add('muted');
+  if(icon) icon.textContent = audio.muted ? '🔇' : '🔊';
+});
 
 // ============================================================
 // BOARD PATH - 标准飞行棋52格外圈路径 (row,col)
@@ -1474,9 +1665,11 @@ async function doMove(pi, ki) {
       pc.finished = true;
       pc.homePos = HOME_DISPLAY[pc.player].length - 1;
       log(`${P_NAMES[pi]} 棋子${ki+1} 到达终点！🏆`);
+      audio.homeEntry();
     } else {
       pc.homePos = result.homePos;
       log(`${P_NAMES[pi]} 棋子${ki+1} 进入终点跑道第${result.homePos+1}格`);
+      audio.homeEntry();
     }
   } else {
     pc.pos = result.pos;
@@ -1648,6 +1841,7 @@ function rollDice() {
       document.getElementById('dice-result').textContent=`掷到了 ${v} 点`;
       showDiceFace(false);
       alienCheer(v); // 三眼仔欢呼特效
+      if(v === 6) audio.six();
       // B17: 连续 3 个 6 自动跳过本回合
       if(v === 6) {
         gs.consecutive6 = (gs.consecutive6 || 0) + 1;
@@ -1749,6 +1943,7 @@ function updateUI() {
     banner.classList.remove('banner-turn-attn');
     void banner.offsetWidth; // force reflow so animation replays
     banner.classList.add('banner-turn-attn');
+    audio.turnStart();
   }
   if(gameMode==='online'){
     if(isMyTurn && gs.phase==='roll'){
@@ -2220,6 +2415,7 @@ function handleRemoteAction(action){
       // B15: 远端骰子滚动动画
       const el = document.getElementById('dice-face');
       sndDice();
+      if(Number(action.dice_val) === 6) setTimeout(() => audio.six(), 500);
       if(el){
         el.classList.add('rolling','disabled');
         let n = 0;
