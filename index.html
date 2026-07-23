@@ -7,29 +7,47 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;800;900&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --sky:#06112e; --card:rgba(255,255,255,0.05); --border:rgba(255,255,255,0.1);
-  --radius:16px; --yellow:#ffd166; --green:#c8e84a; --blue:#2b7fd4;
-  --text:#e8f4f8; --text-dim:#8ecae6;
-  --p0:#e53935; --p1:#ffb300; --p2:#1e88e5; --p3:#43a047;
+  /* Deep-space palette (unified) */
+  --bg-deep:#0A1130; --bg-surface:#141F4A; --bg-elevated:#1B2960;
+  --border-soft:rgba(167,139,250,0.18); --border-hard:rgba(167,139,250,0.35);
+  --text-hi:#F0F4FF; --text-mid:#B8C4E8; --text-low:#7885B5;
+  --brand-yellow:#FFD53D; --brand-yellow-dark:#F5A623; --brand-yellow-light:#FFE066;
+  --brand-purple:#A78BFA;
+  --success:#4ADE80; --warning:#FB923C; --danger:#F87171;
+  /* Player colors: main / dark (stroke) / light (highlight) */
+  --p0:#EF4444; --p0d:#B91C1C; --p0l:#FCA5A5;
+  --p1:#F59E0B; --p1d:#B45309; --p1l:#FDE68A;
+  --p2:#3B82F6; --p2d:#1E40AF; --p2l:#93C5FD;
+  --p3:#22C55E; --p3d:#15803D; --p3l:#86EFAC;
+  /* Radius scale */
+  --r-sm:12px; --r-md:16px; --r-lg:20px;
+  /* Shadow tokens */
+  --sh-1:0 2px 8px rgba(0,0,0,0.3);
+  --sh-2:0 6px 24px rgba(0,0,0,0.4);
+  --sh-3:0 12px 40px rgba(0,0,0,0.5);
+  /* Legacy aliases (kept for backward-compat of unmigrated selectors) */
+  --sky:var(--bg-deep); --card:rgba(255,255,255,0.05); --border:var(--border-soft);
+  --radius:var(--r-md); --yellow:var(--brand-yellow); --green:var(--p3); --blue:var(--brand-purple);
+  --text:var(--text-hi); --text-dim:var(--text-mid);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100%;font-family:'Nunito',sans-serif;background:var(--sky);color:var(--text);overflow-x:hidden}
 body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:radial-gradient(ellipse 100% 55% at 50% 0%,#0d2660 0%,transparent 65%),
-  radial-gradient(ellipse 50% 40% at 85% 90%,rgba(100,40,130,0.3) 0%,transparent 55%);}
+  background:radial-gradient(ellipse 100% 55% at 50% 0%,#1a2360 0%,transparent 65%),
+  radial-gradient(ellipse 50% 40% at 85% 90%,rgba(167,139,250,0.22) 0%,transparent 55%);}
 .stars{position:fixed;inset:0;z-index:0;pointer-events:none}
 #app{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:0.75rem;
   display:flex;flex-direction:column;gap:0.75rem;min-height:100vh}
 
 nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 1rem;
-  background:rgba(6,17,46,0.9);border:1px solid rgba(43,127,212,0.25);
+  background:rgba(10,17,48,0.9);border:1px solid rgba(167,139,250,0.25);
   border-radius:var(--radius);backdrop-filter:blur(12px)}
 .logo{display:flex;align-items:center;gap:8px;font-family:'Fredoka One',cursive;font-size:20px;color:var(--yellow)}
 .logo img{width:40px;height:30px;object-fit:cover;border-radius:6px}
 .nav-links{display:flex;gap:6px}
 .nav-btn{background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:10px;
   padding:6px 14px;font-size:13px;font-weight:700;color:var(--text-dim);cursor:pointer;font-family:inherit;transition:all 0.2s}
-.nav-btn:hover,.nav-btn.active{background:rgba(43,127,212,0.2);border-color:var(--blue);color:#6db8ff}
+.nav-btn:hover,.nav-btn.active{background:rgba(167,139,250,0.2);border-color:var(--blue);color:#FFD53D}
 
 .screen{display:none;flex-direction:column;gap:0.75rem;animation:fadeUp 0.2s ease}
 .screen.active{display:flex}
@@ -48,7 +66,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .home-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 
 /* RULES */
-.rules-card{background:rgba(6,17,46,0.8);border:1px solid rgba(43,127,212,0.15);border-radius:var(--radius);padding:1rem 1.25rem}
+.rules-card{background:rgba(10,17,48,0.8);border:1px solid rgba(167,139,250,0.15);border-radius:var(--radius);padding:1rem 1.25rem}
 .rules-title{font-family:'Fredoka One',cursive;font-size:15px;color:var(--yellow);margin-bottom:0.6rem}
 .rules-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .rule-item{display:flex;gap:8px;align-items:flex-start;font-size:12px}
@@ -57,10 +75,10 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .rule-text span{color:var(--text-dim)}
 
 /* BUTTONS */
-.btn-primary{background:linear-gradient(135deg,#2b9fd4,#1a5fa8);color:#fff;border:none;
+.btn-primary{background:linear-gradient(160deg,var(--brand-yellow-light),var(--brand-yellow) 45%,var(--brand-yellow-dark));color:#3a2100;border:none;
   border-radius:10px;padding:12px 28px;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;
-  transition:all 0.2s;box-shadow:0 4px 16px rgba(43,127,212,0.35)}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(43,127,212,0.5)}
+  transition:all 0.2s;box-shadow:0 4px 14px rgba(255,213,61,0.4),inset 0 2px 0 rgba(255,255,255,0.55),inset 0 -2px 0 rgba(0,0,0,0.12);letter-spacing:0.3px}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(255,213,61,0.55),inset 0 2px 0 rgba(255,255,255,0.55),inset 0 -2px 0 rgba(0,0,0,0.12)}
 .btn-ghost{background:rgba(255,255,255,0.05);color:var(--text);border:1px solid rgba(255,255,255,0.15);
   border-radius:10px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s}
 .btn-ghost:hover{background:rgba(255,255,255,0.1)}
@@ -70,17 +88,17 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .overlay{position:fixed;inset:0;background:rgba(3,8,24,0.85);display:flex;align-items:center;
   justify-content:center;z-index:100;backdrop-filter:blur(8px)}
 .overlay.hidden{display:none}
-.modal{background:linear-gradient(160deg,#0d1f4a,#081228);border:1px solid rgba(43,127,212,0.3);
+.modal{background:linear-gradient(160deg,#141F4A,#081228);border:1px solid rgba(167,139,250,0.3);
   border-radius:var(--radius);padding:1.75rem;width:min(400px,94vw);display:flex;flex-direction:column;gap:1rem;
-  box-shadow:0 0 40px rgba(43,127,212,0.15);max-height:90vh;overflow-y:auto}
+  box-shadow:0 0 40px rgba(167,139,250,0.15);max-height:90vh;overflow-y:auto}
 .modal h2{font-family:'Fredoka One',cursive;font-size:20px;color:var(--yellow)}
-.input-field{background:rgba(255,255,255,0.06);border:1px solid rgba(43,127,212,0.3);
+.input-field{background:rgba(255,255,255,0.06);border:1px solid rgba(167,139,250,0.3);
   border-radius:10px;padding:10px 14px;color:var(--text);font-size:15px;font-family:inherit;
   width:100%;outline:none;transition:border-color 0.2s}
 .input-field:focus{border-color:var(--blue)}
-.select-field{background:rgba(255,255,255,0.06);border:1px solid rgba(43,127,212,0.3);
+.select-field{background:rgba(255,255,255,0.06);border:1px solid rgba(167,139,250,0.3);
   border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;font-family:inherit;width:100%;outline:none}
-.select-field option{background-color:#151f3b;color:#ffffff;}
+.select-field option{background-color:var(--bg-surface);color:#ffffff;}
 .form-label{font-size:13px;font-weight:700;color:var(--text-dim);margin-bottom:4px;display:block}
 .form-group{display:flex;flex-direction:column;gap:4px}
 .modal-btns{display:flex;gap:8px}
@@ -102,38 +120,38 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .section-header{display:flex;align-items:center;justify-content:space-between}
 .section-title{font-family:'Fredoka One',cursive;font-size:18px;color:var(--yellow)}
 .rooms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
-.room-card{background:rgba(6,17,46,0.85);border:1px solid rgba(43,127,212,0.18);
+.room-card{background:rgba(10,17,48,0.85);border:1px solid rgba(167,139,250,0.18);
   border-radius:var(--radius);padding:1rem;cursor:pointer;transition:all 0.2s;position:relative}
-.room-card:hover{border-color:rgba(43,127,212,0.45);transform:translateY(-2px)}
+.room-card:hover{border-color:rgba(167,139,250,0.45);transform:translateY(-2px)}
 .room-del-btn{position:absolute;top:6px;right:6px;background:rgba(230,57,70,0.75);color:#fff;
   border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
-.room-del-btn:hover{background:#e63946}
+.room-del-btn:hover{background:#EF4444}
 .room-name{font-size:14px;font-weight:800}
-.badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:rgba(43,127,212,0.2);color:#6db8ff}
+.badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:rgba(167,139,250,0.2);color:#FFD53D}
 .room-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .room-meta{font-size:12px;color:var(--text-dim);margin-bottom:8px}
 .room-avatars{display:flex;gap:4px}
-.create-card{background:rgba(6,17,46,0.5);border:2px dashed rgba(43,127,212,0.2);
+.create-card{background:rgba(10,17,48,0.5);border:2px dashed rgba(167,139,250,0.2);
   border-radius:var(--radius);padding:1rem;cursor:pointer;transition:all 0.2s;
   display:flex;align-items:center;justify-content:center;gap:8px;min-height:100px;
   color:var(--text-dim);font-size:14px;font-weight:700}
-.create-card:hover{background:rgba(43,127,212,0.06);border-color:rgba(43,127,212,0.4);color:#6db8ff}
+.create-card:hover{background:rgba(167,139,250,0.06);border-color:rgba(167,139,250,0.4);color:#FFD53D}
 
 /* GAME */
 .room-code-bar{display:flex;align-items:center;justify-content:space-between;
-  background:rgba(100,40,130,0.15);border:1px solid rgba(155,63,168,0.3);
+  background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.3);
   border-radius:10px;padding:7px 14px;font-size:13px}
-.room-code-val{font-family:'Space Mono',monospace;font-weight:700;color:#d09dff;letter-spacing:3px}
-.copy-btn{background:rgba(155,63,168,0.12);border:1px solid rgba(155,63,168,0.3);
-  border-radius:8px;padding:4px 10px;color:#d09dff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.room-code-val{font-family:'Space Mono',monospace;font-weight:700;color:#A78BFA;letter-spacing:3px}
+.copy-btn{background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.3);
+  border-radius:8px;padding:4px 10px;color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
 .board-area{display:flex;flex-direction:column;align-items:center;gap:0.75rem}
 .board-container{position:relative;width:100%;max-width:500px;margin:0 auto}
 #ludo-board{width:100%;height:auto;display:block;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.5);cursor:pointer}
 
 /* DICE */
 .dice-area{display:flex;align-items:center;justify-content:center;gap:1rem;
-  background:rgba(6,17,46,0.8);border:1px solid rgba(43,127,212,0.2);
+  background:rgba(10,17,48,0.8);border:1px solid rgba(167,139,250,0.2);
   border-radius:var(--radius);padding:0.8rem 1.2rem;width:100%;max-width:500px}
 .dice{width:64px;height:64px;background:white;border-radius:14px;
   display:flex;align-items:center;justify-content:center;
@@ -155,7 +173,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 
 /* PLAYERS PANEL */
 .players-panel{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;max-width:500px}
-.player-card{background:rgba(6,17,46,0.8);border:2px solid rgba(255,255,255,0.08);
+.player-card{background:rgba(10,17,48,0.8);border:2px solid rgba(255,255,255,0.08);
   border-radius:12px;padding:0.6rem 0.8rem;display:flex;align-items:center;gap:8px;transition:all 0.3s}
 .player-name{font-weight:800;font-size:13px}
 .player-status{font-size:11px;color:var(--text-dim)}
@@ -163,7 +181,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .pieces-row{display:flex;gap:3px;flex-wrap:wrap}
 
 /* GAME LOG */
-.game-log{background:rgba(6,17,46,0.7);border:1px solid rgba(43,127,212,0.15);
+.game-log{background:rgba(10,17,48,0.7);border:1px solid rgba(167,139,250,0.15);
   border-radius:12px;padding:0.6rem 0.8rem;max-height:90px;overflow-y:auto;
   font-size:12px;width:100%;max-width:500px}
 .log-entry{padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.05);color:var(--text-dim)}
@@ -173,7 +191,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .end-overlay{position:fixed;inset:0;background:rgba(3,8,24,0.9);display:flex;align-items:center;
   justify-content:center;z-index:50;backdrop-filter:blur(10px)}
 .end-overlay.hidden{display:none}
-.end-box{background:linear-gradient(160deg,#0d1f4a,#081228);border:1px solid rgba(43,127,212,0.3);
+.end-box{background:linear-gradient(160deg,#141F4A,#081228);border:1px solid rgba(167,139,250,0.3);
   border-radius:var(--radius);padding:2rem;text-align:center;max-width:320px;width:92%;
   display:flex;flex-direction:column;gap:0.75rem;align-items:center}
 .end-box h2{font-family:'Fredoka One',cursive;font-size:26px;color:var(--yellow)}
@@ -285,16 +303,16 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 /* The Claw 台词气泡 */
 .claw-bubble {
   position:fixed;z-index:502;pointer-events:none;
-  background:rgba(6,17,46,0.95);border:2px solid #ffd166;
+  background:rgba(10,17,48,0.95);border:2px solid #FFD53D;
   border-radius:16px;padding:8px 16px;
-  font-family:'Fredoka One',cursive;font-size:15px;color:#ffd166;
+  font-family:'Fredoka One',cursive;font-size:15px;color:#FFD53D;
   white-space:nowrap;
   animation:bubblePop 2.5s ease forwards;
 }
 .claw-bubble::after {
   content:'';position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);
   width:0;height:0;border-left:10px solid transparent;
-  border-right:10px solid transparent;border-top:12px solid #ffd166;
+  border-right:10px solid transparent;border-top:12px solid #FFD53D;
 }
 @keyframes bubblePop {
   0%{transform:scale(0) translateY(20px);opacity:0}
@@ -315,7 +333,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 
 /* TOAST & FX */
 .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);
-  background:linear-gradient(135deg,#0d2860,#0d1f4a);border:1px solid rgba(43,127,212,0.35);
+  background:linear-gradient(135deg,#1B2960,#141F4A);border:1px solid rgba(167,139,250,0.35);
   border-radius:24px;padding:9px 22px;font-size:14px;font-weight:700;color:var(--text);
   z-index:300;pointer-events:none;white-space:nowrap;
   animation:toastIn 0.2s ease,toastOut 0.3s 2.2s ease forwards}
@@ -323,7 +341,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 @keyframes toastOut{to{transform:translateX(-50%) translateY(20px);opacity:0}}
 .confetti{position:fixed;pointer-events:none;z-index:200;animation:cfFall linear forwards}
 @keyframes cfFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
-.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(43,127,212,0.2);
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(167,139,250,0.2);
   border-top-color:var(--blue);border-radius:50%;animation:spin 0.6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -339,9 +357,9 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 /* CONNECTION status pill (shown only when unstable/recovered) */
 .conn-pill{position:fixed;top:0.5rem;left:50%;transform:translateX(-50%);z-index:400;
   font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;
-  background:rgba(6,17,46,0.95);border:1px solid rgba(255,159,67,0.5);color:#ff9f43;
+  background:rgba(10,17,48,0.95);border:1px solid rgba(251,146,60,0.5);color:var(--warning);
   backdrop-filter:blur(8px);pointer-events:none;transition:opacity 0.3s}
-.conn-pill.ok{border-color:rgba(6,214,160,0.5);color:#06d6a0}
+.conn-pill.ok{border-color:rgba(74,222,128,0.5);color:var(--success)}
 .conn-pill.hidden{opacity:0;pointer-events:none}
 
 /* MOBILE (≤640px) — collapse padding, upsize touch targets, board fills width */
@@ -542,7 +560,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
       <div style="display:flex;flex-direction:column;gap:6px;min-width:120px">
         <div id="turn-info" style="font-family:'Fredoka One',cursive;font-size:15px">-</div>
         <div id="dice-result" style="font-size:12px;color:var(--text-dim)">等待掷骰...</div>
-        <div id="move-hint" style="font-size:11px;color:#ffd166"></div>
+        <div id="move-hint" style="font-size:11px;color:#FFD53D"></div>
       </div>
     </div>
   </div>
@@ -562,10 +580,10 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
     <div class="form-group" id="color-pick-group">
   <label class="form-label">选择颜色</label>
   <div class="color-opts" id="color-opts-row">
-    <div class="color-opt" data-cidx="0" style="background:#e53935" onclick="pickColor(0)" title="红"></div>
-    <div class="color-opt" data-cidx="1" style="background:#ffb300" onclick="pickColor(1)" title="黄"></div>
-    <div class="color-opt" data-cidx="2" style="background:#1e88e5" onclick="pickColor(2)" title="蓝"></div>
-    <div class="color-opt" data-cidx="3" style="background:#43a047" onclick="pickColor(3)" title="绿"></div>
+    <div class="color-opt" data-cidx="0" style="background:#EF4444" onclick="pickColor(0)" title="红"></div>
+    <div class="color-opt" data-cidx="1" style="background:#F59E0B" onclick="pickColor(1)" title="黄"></div>
+    <div class="color-opt" data-cidx="2" style="background:#3B82F6" onclick="pickColor(2)" title="蓝"></div>
+    <div class="color-opt" data-cidx="3" style="background:#22C55E" onclick="pickColor(3)" title="绿"></div>
   </div>
 </div>
     <div class="form-group"><label class="form-label">选择角色</label>
@@ -599,7 +617,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 <div id="screen-path-editor" style="display:none;position:fixed;inset:0;z-index:900;background:#06112e;overflow:auto;padding:1rem;box-sizing:border-box">
   <div style="max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:0.75rem">
     <div style="display:flex;align-items:center;justify-content:space-between">
-      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#ffd166">🗺️ 路径编辑器</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#FFD53D">🗺️ 路径编辑器</div>
       <div style="display:flex;gap:8px">
         <button class="btn-ghost btn-sm" onclick="pathEditorClear()">清除</button>
         <button class="btn-primary btn-sm" onclick="pathEditorCopy()">复制全部</button>
@@ -609,8 +627,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
       <svg id="path-editor-svg" viewBox="0 0 600 600" style="width:100%;height:auto;display:block;border-radius:8px;cursor:crosshair;box-shadow:0 4px 24px rgba(0,0,0,0.5)"></svg>
     </div>
     <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.75rem">
-      <div style="font-size:12px;font-weight:700;color:#8ecae6;margin-bottom:6px">已选坐标（<span id="path-editor-count">0</span> 个）：</div>
-      <div id="path-editor-list" style="font-family:'Space Mono',monospace;font-size:12px;color:#ffd166;line-height:1.8;word-break:break-all;min-height:36px"></div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-mid);margin-bottom:6px">已选坐标（<span id="path-editor-count">0</span> 个）：</div>
+      <div id="path-editor-list" style="font-family:'Space Mono',monospace;font-size:12px;color:#FFD53D;line-height:1.8;word-break:break-all;min-height:36px"></div>
     </div>
   </div>
 </div>
@@ -797,7 +815,8 @@ function alienVictoryEffect(winnerAvatarSrc) {
   }
 
   // 三眼仔彩屑纸屑
-  const alienColors = ['#e63946','#2b7fd4','#06d6a0','#ffd166','#c8e84a','#c77dff'];
+  // Confetti: keep unified to player colors (approved in preview)
+  const alienColors = ['#EF4444','#F59E0B','#3B82F6','#22C55E','#FFD53D','#A78BFA'];
   for(let i=0;i<80;i++) {
     setTimeout(() => {
       const el = document.createElement('div');
@@ -856,9 +875,10 @@ function boardToScreen(r, c) {
   };
 }
 
-const P_COLORS=['#e53935','#ffb300','#1e88e5','#43a047'];
-const P_LIGHT=['#ffc8cc','#fff0b3','#b3d4f5','#b3f0e0'];
-const P_NAMES=['红方','黄方','蓝方','绿方'];
+const P_COLORS=['#EF4444','#F59E0B','#3B82F6','#22C55E'];
+const P_DARK  =['#B91C1C','#B45309','#1E40AF','#15803D'];
+const P_LIGHT =['#FCA5A5','#FDE68A','#93C5FD','#86EFAC'];
+const P_NAMES =['红方','黄方','蓝方','绿方'];
 const P_EMOJIS=['🔴','🟡','🔵','🟢'];
 const S=600, C=40; // board size, cell size
 
@@ -969,7 +989,6 @@ function drawBoard(state) {
   }
   // 棋子坐标系：基于图片实际布局
   // 图片约 15x15 格，每格约 40px（600/15）
-  const PC = ['#e53935','#ffb300','#1e88e5','#43a047'];
 
   const BASE_SLOTS = [
     [{r:2,c:1},{r:2,c:4},{r:5,c:1},{r:5,c:4}],
@@ -1038,8 +1057,7 @@ function drawBoard(state) {
 }
 
 function drawPieceAvatar(cx, cy, pc, state) {
-  const PC = ['#e53935','#ffb300','#1e88e5','#43a047'];
-  const col = PC[pc.player];
+  const col = P_COLORS[pc.player];
   const C = 40, r = 16;
   const isTurn = state && Number(state.currentPlayer) === Number(pc.player) && state.phase === 'move';
   const movable = isTurn && canMove(pc, state.diceVal, state);
@@ -1081,8 +1099,6 @@ let myPlayerId = localStorage.getItem('ludo_pid') || (()=>{const id='p'+Date.now
 let myNick = localStorage.getItem('ludo_nick')||'';
 let myAvatarId = localStorage.getItem('ludo_avatar')||(ALIENS[0]?.id||'');
 let myColorIdx = -1;
-const COLOR_HEX = ['#e53935','#ffb300','#1e88e5','#43a047'];
-const COLOR_NAMES = ['红','黄','蓝','绿'];
 
 function pickColor(cidx) {
   myColorIdx = cidx;
@@ -1498,15 +1514,15 @@ function updateUI() {
         const myPcs=gs.pieces.filter(p=>Number(p.player)===cur&&canMove(p,gs.diceVal,gs));
         const hasInBase=myPcs.some(p=>p.pos===-1);
         if(gs.diceVal===6&&hasInBase){
-          mh.textContent='🎉 掷到6！点击基地里的棋子出发'; mh.style.color='#ffd166';
+          mh.textContent='🎉 掷到6！点击基地里的棋子出发'; mh.style.color='#FFD53D';
         } else {
           const canCapture=myPcs.some(p=>{
             if(p.pos<0) return false;
             const res=nextPos(p,gs.diceVal);
             return res&&!res.home&&gs.pieces.some(o=>Number(o.player)!==cur&&o.pos===res.pos&&!o.finished&&!SAFE_IDX.includes(res.pos));
           });
-          if(canCapture){ mh.textContent='⚠️ 可以吃掉对方棋子！'; mh.style.color='#ff9f43'; }
-          else { mh.textContent='👆 点击你的棋子移动'; mh.style.color='#06d6a0'; }
+          if(canCapture){ mh.textContent='⚠️ 可以吃掉对方棋子！'; mh.style.color='var(--warning)'; }
+          else { mh.textContent='👆 点击你的棋子移动'; mh.style.color='var(--success)'; }
         }
       } else {
         mh.textContent='⏳ 等待对方操作...'; mh.style.color='var(--text-dim)';
@@ -1534,7 +1550,7 @@ function renderPanel() {
         <div class="player-name" style="color:${P_COLORS[i]};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
         <div class="player-status">🏠${base} 🎮${out} 🏆${fin}</div>
       </div>
-      <div class="pieces-row">${pcs.map(pc=>`<div class="piece-mini" style="background:${pc.finished?'#ffd166':P_COLORS[i]};opacity:${pc.pos===-1?.3:1}"></div>`).join('')}</div>
+      <div class="pieces-row">${pcs.map(pc=>`<div class="piece-mini" style="background:${pc.finished?'#FFD53D':P_COLORS[i]};opacity:${pc.pos===-1?.3:1}"></div>`).join('')}</div>
     </div>`;
   }).join('');
 }
@@ -1734,7 +1750,7 @@ function createWaitDiv(){
   const d=document.createElement('div');
   d.id='online-wait';
   d.style.cssText='display:flex;flex-direction:column;gap:1rem;align-items:center;'+
-    'background:rgba(6,17,46,0.8);border:1px solid rgba(43,127,212,0.2);'+
+    'background:rgba(10,17,48,0.8);border:1px solid rgba(167,139,250,0.2);'+
     'border-radius:16px;padding:1.5rem;width:100%;max-width:500px;margin:0 auto';
   const panel=document.getElementById('players-panel');
   panel.parentNode.insertBefore(d,panel);
