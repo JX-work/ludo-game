@@ -960,21 +960,15 @@ function safeZoneEffect(screenX, screenY) {
 // Eaten piece flies back to its base slot (visual, not state-changing).
 // Called from both local doMove and remote move handler right before the
 // piece.pos gets snapped to -1.
-const _BASE_SLOTS_XY = [
-  [{r:2,c:1},{r:2,c:4},{r:5,c:1},{r:5,c:4}],
-  [{r:2,c:24},{r:2,c:27},{r:5,c:24},{r:5,c:27}],
-  [{r:24,c:24},{r:24,c:27},{r:27,c:24},{r:27,c:27}],
-  [{r:24,c:1},{r:24,c:4},{r:27,c:1},{r:27,c:4}],
-];
 function flyPieceHome(pc, fromX, fromY) {
   const board = document.getElementById('ludo-board');
   if(!board) return;
-  const slot = _BASE_SLOTS_XY[Number(pc.player)]?.[Number(pc.idx)];
+  const slot = BASE_SLOTS_XY[Number(pc.player)]?.[Number(pc.idx)];
   if(!slot) return;
   const rect = board.getBoundingClientRect();
   const scX = rect.width/600, scY = rect.height/600;
-  const tx = rect.left + (slot.c+0.5)*20*scX;
-  const ty = rect.top  + (slot.r+0.5)*20*scY;
+  const tx = rect.left + slot[0]*scX;
+  const ty = rect.top  + slot[1]*scY;
   const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
   const src = pd[Number(pc.player)]?.src;
   if(!src) return;
@@ -995,17 +989,14 @@ function flyPieceHome(pc, fromX, fromY) {
   setTimeout(() => el.remove(), 850);
 }
 
-// 把坐标转成屏幕坐标
-function boardToScreen(r, c) {
+// Convert SVG board coords (from LUDO_OUTER_XY / HOME_DISPLAY_XY / BASE_SLOTS_XY)
+// to screen coords, honoring the board's rendered rect on the page.
+function boardToScreen(svgX, svgY) {
   const board = document.getElementById('ludo-board');
-  if(!board) return {x:0,y:0};
+  if(!board) return {x:0, y:0};
   const rect = board.getBoundingClientRect();
-  const scX = rect.width / 600;
-  const scY = rect.height / 600;
-  return {
-    x: rect.left + (c + 0.5) * 40 * scX,
-    y: rect.top  + (r + 0.5) * 40 * scY,
-  };
+  const scX = rect.width / 600, scY = rect.height / 600;
+  return { x: rect.left + svgX*scX, y: rect.top + svgY*scY };
 }
 
 const P_COLORS=['#EF4444','#F59E0B','#3B82F6','#22C55E'];
@@ -1296,6 +1287,43 @@ const HOME_DISPLAY = [
 const SAFE_IDX = [0, 13, 26, 39, 8, 21, 34, 47];
 
 // ============================================================
+// BOARD PIXEL COORDS — measured from board2.jpg (Hough circle detection
+// + segment-based interpolation). Replaces the old "grid × 20" formula
+// which assumed a uniform 15×15 layout the actual image doesn't honor.
+// ── Base slot centers (16): all detected, ≤5px accuracy
+// ── Home lane cell centers (20): 18 detected + 2 interpolated
+// ── Outer path cell centers (52): 12 straight segments, snap-to-line
+//    for edges, uniform interp between endpoints; matches image bounds
+//    (X 24.5-574.4, Y 51-547.5) and arm inner rows/cols (265.6/351.1/263.2/354.1)
+// ============================================================
+const BASE_SLOTS_XY = [
+  [[33.8,47.6], [95.4,47.3], [33.8,109.4], [94.8,108.8]],       // p0 red top-left
+  [[505.2,41.2], [567.6,40.9], [504.9,104.2], [568.2,104.7]],   // p1 yellow top-right
+  [[505.8,491.5], [567.3,491.5], [505.2,553.9], [567.0,553.9]], // p2 blue bottom-right
+  [[43.2,487.4], [105.3,486.8], [43.2,549.8], [105.9,549.8]],   // p3 green bottom-left
+];
+const HOME_DISPLAY_XY = [
+  [[61.4,301.3], [100.0,301.3], [139.0,301.0], [177.7,301.3], [216.9,301.3]],  // p0
+  [[299.0,64.4], [299.0,103.9], [299.0,143.4], [299.0,183.0], [298.7,222.8]],  // p1
+  [[537.7,301.3], [498.8,301.3], [460.1,301.6], [420.6,301.6], [381.6,301.6]], // p2
+  [[302.5,547.1], [302.1,517.8], [301.6,488.5], [299.9,440.2], [299.9,392.1]], // p3
+];
+const LUDO_OUTER_XY = [
+  [74.5,263.2],[114.5,263.2],[154.5,263.2],[194.5,263.2],[234.5,263.2],
+  [265.6,228.3],[265.6,192.8],[265.6,157.4],[265.6,121.9],[265.6,86.5],[265.6,51.0],
+  [308.5,51.0],[348.8,51.0],
+  [351.1,92.6],[351.1,126.5],[351.1,160.4],[351.1,194.4],[351.1,228.3],
+  [369.6,263.2],[410.6,263.2],[451.5,263.2],[492.5,263.2],[533.4,263.2],[574.4,263.2],
+  [574.4,301.6],[574.4,343.2],
+  [535.4,354.1],[496.0,354.1],[456.7,354.1],[417.4,354.1],[378.0,354.1],
+  [351.1,396.8],[351.1,427.0],[351.1,457.3],[351.1,487.5],[351.1,517.8],[351.1,548.0],
+  [308.5,547.5],[268.2,547.5],
+  [265.6,546.2],[265.6,506.8],[265.6,467.3],[265.6,427.9],[265.6,388.4],
+  [224.8,354.1],[184.7,354.1],[144.7,354.1],[104.6,354.1],[64.6,354.1],[24.5,354.1],
+  [24.5,300.4],[24.5,263.2]
+];
+
+// ============================================================
 // DRAW BOARD
 // ============================================================
 function drawBoard(state) {
@@ -1327,21 +1355,16 @@ function drawBoard(state) {
     </filter>
   </defs>`;
 
-  const C = 20; // 每格 20px（600px / 30格）
+  // Center of the 4 finished-pieces cluster (roughly image center)
+  const FINISHED_CX = 300, FINISHED_CY = 300;
 
   // ── Board decoration overlay ──
-  // (Corner "base area" rect removed — board2.jpg already paints those
-  //  colored quadrants; overlaying another rect used guessed coords and
-  //  misaligned with the underlying image.)
-  // 1) Safe-cell stars — only on the 4 mid-lane safe cells (not on start cells,
-  //    which already have inward arrows on board2.jpg)
+  // 1) Safe-cell stars on the 4 mid-lane safe cells (not on starts — board2.jpg
+  //    already paints inward arrows there)
   [8, 21, 34, 47].forEach(idx => {
-    if(idx >= 0 && idx < LUDO_OUTER.length) {
-      const {r, c} = LUDO_OUTER[idx];
-      const cx = (c + 0.5) * C, cy = (r + 0.5) * C;
-      // 5-point star centered on cell
-      const s = 6; // star radius
-      const pts = [];
+    if(idx >= 0 && idx < LUDO_OUTER_XY.length) {
+      const [cx, cy] = LUDO_OUTER_XY[idx];
+      const s = 6, pts = [];
       for(let i = 0; i < 10; i++){
         const a = -Math.PI/2 + i * Math.PI/5;
         const rr = i%2===0 ? s : s*0.42;
@@ -1353,25 +1376,21 @@ function drawBoard(state) {
       </g>`;
     }
   });
-  // 3) Home-entry chevron arrows pointing inward (cardinal)
+  // 2) Home-entry chevron arrows pointing inward (cardinal)
   const CHEVRON_DIR = [
-    // dx,dy: which cardinal direction the arrow points (toward center)
     { dx:  1, dy:  0 }, // p0 red: right
     { dx:  0, dy:  1 }, // p1 yellow: down
     { dx: -1, dy:  0 }, // p2 blue: left
     { dx:  0, dy: -1 }, // p3 green: up
   ];
   P_HOME_ENTRY.forEach((idx, pi) => {
-    if(idx >= 0 && idx < LUDO_OUTER.length) {
-      const {r, c} = LUDO_OUTER[idx];
-      const cx = (c + 0.5) * C, cy = (r + 0.5) * C;
+    if(idx >= 0 && idx < LUDO_OUTER_XY.length) {
+      const [cx, cy] = LUDO_OUTER_XY[idx];
       const {dx, dy} = CHEVRON_DIR[pi];
       const col = P_COLORS[pi], cold = P_DARK[pi];
-      // Smaller chevron kept fully inside cell (was extending 1px past the
-      // cell edge). offset 5.5 puts the tip at cy+5.5 for 10-unit half-cell.
       const ox = dx * 5, oy = dy * 5;
       const tx = cx + ox, ty = cy + oy;
-      const px = -dy * 2.5, py = dx * 2.5; // perpendicular half-width
+      const px = -dy * 2.5, py = dx * 2.5;
       const p1 = `${(tx + dx*2.5).toFixed(1)},${(ty + dy*2.5).toFixed(1)}`;
       const p2 = `${(tx - dx*1.5 + px).toFixed(1)},${(ty - dy*1.5 + py).toFixed(1)}`;
       const p3 = `${(tx - dx*1.5 - px).toFixed(1)},${(ty - dy*1.5 - py).toFixed(1)}`;
@@ -1379,62 +1398,45 @@ function drawBoard(state) {
     }
   });
 
-  // 基地棋子槽：有玩家加入该颜色才叠加角色图片，无玩家则不叠加（保留图片原有虚线圆圈）
+  // 基地棋子槽：有玩家加入该颜色才叠加角色图片
   {
-    const BASE_SLOT_COORDS = [
-      [{r:2,c:1},{r:2,c:4},{r:5,c:1},{r:5,c:4}],
-      [{r:2,c:24},{r:2,c:27},{r:5,c:24},{r:5,c:27}],
-      [{r:24,c:24},{r:24,c:27},{r:27,c:24},{r:27,c:27}],
-      [{r:24,c:1},{r:24,c:4},{r:27,c:1},{r:27,c:4}],
-    ];
     const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
-    BASE_SLOT_COORDS.forEach((slots, pi) => {
+    BASE_SLOTS_XY.forEach((slots, pi) => {
       const playerData = pd[pi];
       const avatarSrc = playerData ? playerData.src : '';
       if (!avatarSrc) return;
       slots.forEach((slot, si) => {
-        const cx = (slot.c + 0.5) * C;
-        const cy = (slot.r + 0.5) * C;
-        h += `<defs><clipPath id="base_${pi}_${si}"><circle cx="${cx}" cy="${cy}" r="${C*0.7}"/></clipPath></defs>`;
-        h += `<image href="${avatarSrc}" x="${cx-C*0.7}" y="${cy-C*0.7}" width="${C*1.4}" height="${C*1.4}" clip-path="url(#base_${pi}_${si})" preserveAspectRatio="xMidYMid slice"/>`;
+        const [cx, cy] = slot;
+        const rr = 14; // base slot avatar radius
+        h += `<defs><clipPath id="base_${pi}_${si}"><circle cx="${cx}" cy="${cy}" r="${rr}"/></clipPath></defs>`;
+        h += `<image href="${avatarSrc}" x="${cx-rr}" y="${cy-rr}" width="${rr*2}" height="${rr*2}" clip-path="url(#base_${pi}_${si})" preserveAspectRatio="xMidYMid slice"/>`;
       });
     });
   }
-  // 棋子坐标系：基于图片实际布局
-  // 图片约 15x15 格，每格约 40px（600/15）
-
-  const BASE_SLOTS = [
-    [{r:2,c:1},{r:2,c:4},{r:5,c:1},{r:5,c:4}],
-    [{r:2,c:24},{r:2,c:27},{r:5,c:24},{r:5,c:27}],
-    [{r:24,c:24},{r:24,c:27},{r:27,c:24},{r:27,c:27}],
-    [{r:24,c:1},{r:24,c:4},{r:27,c:1},{r:27,c:4}],
-  ];
 
   if(state) {
     const posMap = {};
     state.pieces.forEach(pc => {
-      if(!pc.finished && pc.pos >= 0 && pc.pos < LUDO_OUTER.length) {
+      if(!pc.finished && pc.pos >= 0 && pc.pos < LUDO_OUTER_XY.length) {
         if(!posMap[pc.pos]) posMap[pc.pos] = [];
         posMap[pc.pos].push(pc);
       }
     });
 
-    const _pd_debug = JSON.parse(localStorage.getItem('ludo_players')||'[]');
-    console.log('[drawBoard] pd:', _pd_debug.map((p,i)=>p?`[${i}]${p.name||'?'}(${p.src?'has-avatar':'NO-AVATAR'})`:null).filter(Boolean), 'pieces:', state.pieces.map(p=>`p${p.player}k${p.idx}@${p.pos}`));
     state.pieces.forEach(pc => {
       if(pc.finished) {
-        // 到达终点，显示在中央风车区域
-        const cx = (7 + (pc.idx%2)*0.6 - 0.3) * C;
-        const cy = (7 + Math.floor(pc.idx/2)*0.6 - 0.3 + pc.player*0.15) * C;
+        // Finished piece: cluster near board center, small offset per piece
+        const cx = FINISHED_CX + ((pc.idx%2)*0.6 - 0.3) * 20;
+        const cy = FINISHED_CY + (Math.floor(pc.idx/2)*0.6 - 0.3 + pc.player*0.15) * 20;
         h += drawPiece(cx, cy, pc, state);
         return;
       }
       if(pc.pos === -1) {
-        // 在基地
-        const {r: dr, c: dc} = BASE_SLOTS[pc.player][pc.idx];
-        h += drawPiece(dc * C + C/2, dr * C + C/2, pc, state);
-      } else if(pc.pos >= 0 && pc.pos < LUDO_OUTER.length) {
-        const {r, c} = LUDO_OUTER[pc.pos];
+        // In base — use measured slot xy
+        const slot = BASE_SLOTS_XY[pc.player]?.[pc.idx];
+        if(slot) h += drawPiece(slot[0], slot[1], pc, state);
+      } else if(pc.pos >= 0 && pc.pos < LUDO_OUTER_XY.length) {
+        const [cx0, cy0] = LUDO_OUTER_XY[pc.pos];
         const stack = posMap[pc.pos] || [pc];
         const si = stack.indexOf(pc);
         let ox = 0, oy = 0;
@@ -1450,11 +1452,11 @@ function drawBoard(state) {
           ox = offs4[si] ? offs4[si][0] : 0;
           oy = offs4[si] ? offs4[si][1] : 0;
         }
-        h += drawPieceAvatar((c + 0.5)*C + ox, (r + 0.5)*C + oy, pc, state);
+        h += drawPieceAvatar(cx0 + ox, cy0 + oy, pc, state);
       } else if(pc.pos === -2 && pc.homePos >= 0) {
-        const lane = HOME_DISPLAY[pc.player];
+        const lane = HOME_DISPLAY_XY[pc.player];
         const cell = lane && lane[Math.min(pc.homePos, lane.length-1)];
-        if(cell) h += drawPiece((cell.c+0.5)*C, (cell.r+0.5)*C, pc, state);
+        if(cell) h += drawPiece(cell[0], cell[1], pc, state);
       }
     });
   }
@@ -1665,9 +1667,9 @@ async function doMove(pi, ki) {
     pc.pos = result.pos;
     log(`${P_NAMES[pi]} 掷了 ${gs.diceVal}，棋子${ki+1} 前进`);
     // 棋子跳跃动画
-    if(pc.pos < DISPLAY_PATH.length) {
-      const {r,c} = DISPLAY_PATH[pc.pos];
-      animatePieceJump((c+0.5)*40, (r+0.5)*40);
+    if(pc.pos < LUDO_OUTER_XY.length) {
+      const [px, py] = LUDO_OUTER_XY[pc.pos];
+      animatePieceJump(px, py);
     }
     // 吃子
     gs.pieces.forEach(other => {
@@ -1685,9 +1687,9 @@ async function doMove(pi, ki) {
       const safe = SAFE_IDX.includes(Number(pc.pos));
       if(!safe) {
         // 吃子特效 + 被吃棋子飞回基地
-        if(other.pos < DISPLAY_PATH.length) {
-          const {r,c} = DISPLAY_PATH[other.pos];
-          const sc = boardToScreen(r,c);
+        if(other.pos < LUDO_OUTER_XY.length) {
+          const [ox, oy] = LUDO_OUTER_XY[other.pos];
+          const sc = boardToScreen(ox, oy);
           alienEatEffect(sc.x, sc.y);
           flyPieceHome(other, sc.x, sc.y);
         }
@@ -1697,9 +1699,9 @@ async function doMove(pi, ki) {
         gs.extraRoll = true; // B1: 吃子后再掷一次
       } else {
         // 安全格特效
-        if(pc.pos < DISPLAY_PATH.length) {
-          const {r,c} = DISPLAY_PATH[pc.pos];
-          const sc = boardToScreen(r,c);
+        if(pc.pos < LUDO_OUTER_XY.length) {
+          const [px2, py2] = LUDO_OUTER_XY[pc.pos];
+          const sc = boardToScreen(px2, py2);
           safeZoneEffect(sc.x, sc.y);
         }
         sndSafe();
@@ -2445,18 +2447,18 @@ function handleRemoteAction(action){
       if(!op) return;
       const opPos = Number(op.pos), npPos = Number(np.pos);
       // 被吃：从路径回到基地(视觉飞回)
-      if(opPos >= 0 && opPos < LUDO_OUTER.length && npPos === -1){
-        const {r,c} = LUDO_OUTER[opPos];
-        const sc = boardToScreen(r, c);
+      if(opPos >= 0 && opPos < LUDO_OUTER_XY.length && npPos === -1){
+        const [ox, oy] = LUDO_OUTER_XY[opPos];
+        const sc = boardToScreen(ox, oy);
         alienEatEffect(sc.x, sc.y);
         showEatPopup();
         flyPieceHome(op, sc.x, sc.y);
         sndEat();
       }
       // 移动：路径上位置变化
-      if(opPos !== npPos && npPos >= 0 && npPos < LUDO_OUTER.length && !np.finished){
-        const {r,c} = LUDO_OUTER[npPos];
-        animatePieceJump((c+0.5)*40, (r+0.5)*40);
+      if(opPos !== npPos && npPos >= 0 && npPos < LUDO_OUTER_XY.length && !np.finished){
+        const [px, py] = LUDO_OUTER_XY[npPos];
+        animatePieceJump(px, py);
       }
     });
   }
