@@ -153,16 +153,19 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
 .dice-area{display:flex;align-items:center;justify-content:center;gap:1rem;
   background:rgba(10,17,48,0.8);border:1px solid rgba(167,139,250,0.2);
   border-radius:var(--radius);padding:0.8rem 1.2rem;width:100%;max-width:500px}
-.dice{width:64px;height:64px;background:white;border-radius:14px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:36px;cursor:pointer;transition:all 0.2s;
-  box-shadow:0 4px 16px rgba(0,0,0,0.4);user-select:none;border:3px solid rgba(0,0,0,0.1)}
-.dice:hover:not(.disabled){transform:scale(1.1) rotate(-5deg)}
-.dice.disabled{opacity:0.35;cursor:not-allowed}
+.dice{width:64px;height:64px;background:linear-gradient(160deg,#ffffff,#f0e8d8);
+  border-radius:14px;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s,border-color 0.3s;
+  box-shadow:0 6px 16px rgba(0,0,0,0.5),inset 0 -3px 6px rgba(0,0,0,0.08),inset 0 3px 6px rgba(255,255,255,0.9);
+  user-select:none;border:3px solid #333;padding:0;overflow:visible;position:relative}
+.dice svg{width:100%;height:100%;display:block;pointer-events:none}
+.dice:hover:not(.disabled){transform:scale(1.08) rotate(-4deg)}
+.dice.disabled{opacity:0.4;cursor:not-allowed}
 .dice.rolling{animation:diceRoll 0.5s ease}
-@keyframes diceRoll{0%{transform:rotate(0)}25%{transform:rotate(-20deg) scale(1.1)}75%{transform:rotate(15deg) scale(1.15)}100%{transform:rotate(0) scale(1)}}
+@keyframes diceRoll{0%{transform:rotate(0)}25%{transform:rotate(-24deg) scale(1.12)}75%{transform:rotate(18deg) scale(1.16)}100%{transform:rotate(0) scale(1)}}
+.dice.settle{animation:diceSettle 0.35s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes diceSettle{0%{transform:scale(1.18)}60%{transform:scale(0.92)}100%{transform:scale(1)}}
 .dice.my-turn{animation:diceRing 1.2s ease-in-out infinite}
-@keyframes diceRing{0%,100%{box-shadow:0 0 0 0 rgba(255,213,102,0.8),0 4px 16px rgba(0,0,0,0.4)}50%{box-shadow:0 0 0 14px rgba(255,213,102,0),0 4px 16px rgba(0,0,0,0.4)}}
+@keyframes diceRing{0%,100%{box-shadow:0 0 0 0 rgba(255,213,61,0.75),0 6px 16px rgba(0,0,0,0.5),inset 0 -3px 6px rgba(0,0,0,0.08),inset 0 3px 6px rgba(255,255,255,0.9)}50%{box-shadow:0 0 0 12px rgba(255,213,61,0),0 6px 16px rgba(0,0,0,0.5),inset 0 -3px 6px rgba(0,0,0,0.08),inset 0 3px 6px rgba(255,255,255,0.9)}}
 .eat-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
   background:rgba(230,57,70,0.92);color:#fff;font-family:'Fredoka One',cursive;
   font-size:22px;padding:12px 28px;border-radius:20px;z-index:600;
@@ -554,7 +557,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0.6rem
     <div class="dice-area">
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px;position:relative">
         <img id="dice-alien-face" style="position:absolute;top:-52px;left:50%;transform:translateX(-50%);width:46px;height:46px;object-fit:contain;display:none" src="" alt="">
-        <div id="dice-face" class="dice" onclick="rollDice()">🎲</div>
+        <div id="dice-face" class="dice" onclick="rollDice()"><svg viewBox="0 0 60 60"><g><circle cx="20" cy="20" r="4" fill="#2a1a05"/><circle cx="40" cy="40" r="4" fill="#2a1a05"/></g></svg></div>
         <div style="font-size:10px;color:var(--text-dim)">点击掷骰子</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;min-width:120px">
@@ -1442,7 +1445,22 @@ function endGame(winner) {
 // ============================================================
 // DICE
 // ============================================================
-const DICE_F = ['','⚀','⚁','⚂','⚃','⚄','⚅'];
+// SVG dice face renderer (replaces Unicode ⚀⚁⚂⚃⚄⚅ — inconsistent across fonts)
+const DICE_DOT_POS = {
+  1: [[30,30]],
+  2: [[18,18],[42,42]],
+  3: [[18,18],[30,30],[42,42]],
+  4: [[18,18],[42,18],[18,42],[42,42]],
+  5: [[18,18],[42,18],[30,30],[18,42],[42,42]],
+  6: [[16,18],[44,18],[16,30],[44,30],[16,42],[44,42]]
+};
+function renderDiceFace(val) {
+  const v = Number(val);
+  const dots = DICE_DOT_POS[v];
+  if(!dots) return '<svg viewBox="0 0 60 60"><circle cx="20" cy="20" r="4" fill="#2a1a05"/><circle cx="40" cy="40" r="4" fill="#2a1a05"/></svg>';
+  const body = dots.map(([x,y]) => `<circle cx="${x}" cy="${y}" r="5" fill="#2a1a05"/>`).join('');
+  return `<svg viewBox="0 0 60 60">${body}</svg>`;
+}
 
 function rollDice() {
   if(!gs||gs.phase!=='roll') return;
@@ -1454,12 +1472,13 @@ function rollDice() {
   showDiceFace(true); // 显示骰子三眼仔表情
   let n=0;
   const t=setInterval(async ()=>{
-    el.textContent=DICE_F[Math.floor(Math.random()*6)+1];
+    el.innerHTML=renderDiceFace(Math.floor(Math.random()*6)+1);
     if(++n>=10) {
       clearInterval(t);
       el.classList.remove('rolling','disabled');
       const v=Math.floor(Math.random()*6)+1;
-      el.textContent=DICE_F[v];
+      el.innerHTML=renderDiceFace(v);
+      el.classList.remove('settle');void el.offsetWidth;el.classList.add('settle');
       gs.diceVal=v;
       document.getElementById('dice-result').textContent=`掷到了 ${v} 点`;
       showDiceFace(false);
@@ -1585,7 +1604,9 @@ function updateUI() {
   const canRoll = isMyTurn && gs.phase==='roll';
   dice.classList.toggle('disabled', !canRoll);
   dice.classList.toggle('my-turn', canRoll);
-  if(gs.phase==='roll') dice.textContent='🎲';
+  if(gs.phase==='roll' && dice.querySelector('svg') == null) dice.innerHTML = renderDiceFace(0);
+  // Border color follows current player
+  dice.style.borderColor = P_DARK[cur] || '#333';
 
   const mh=document.getElementById('move-hint');
   if(mh){
@@ -2020,11 +2041,12 @@ function handleRemoteAction(action){
         el.classList.add('rolling','disabled');
         let n = 0;
         const spin = setInterval(() => {
-          el.textContent = DICE_F[Math.floor(Math.random()*6)+1];
+          el.innerHTML = renderDiceFace(Math.floor(Math.random()*6)+1);
           if(++n >= 8){
             clearInterval(spin);
             el.classList.remove('rolling','disabled');
-            el.textContent = DICE_F[action.dice_val] || '🎲';
+            el.innerHTML = renderDiceFace(action.dice_val);
+            el.classList.remove('settle');void el.offsetWidth;el.classList.add('settle');
             const dr = document.getElementById('dice-result');
             if(dr) dr.textContent = P_NAMES[prev] + ' 掷了 ' + action.dice_val + ' 点';
             gs = normalizeGs(action.game_state);
