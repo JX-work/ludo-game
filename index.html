@@ -1491,16 +1491,25 @@ function _renderPiece(cx, cy, pc, state, r) {
     <animate attributeName="opacity" values="0.9;0;0.9" dur="1.05s" repeatCount="indefinite"/>
   </circle>` : '';
   const bob = movable ? `<animateTransform attributeName="transform" type="translate" values="0,0;0,-2;0,0" dur="1.05s" repeatCount="indefinite"/>` : '';
-  const shadowRy = Math.max(1.5, r * 0.14);
+  // Shadow: tighter, thinner, more subtle — reduces "down-weight" that
+  //   made the piece look offset upward within its cell.
+  const shadowRy = Math.max(0.9, r * 0.09);
+  const shadowRx = r * 0.55;
   const ringStroke = r >= 14 ? 1.4 : 1.1;
+  // Highlight: less offset from center + less opaque — reduces top-left
+  //   "brightness pull" that was reading as visual off-centering.
+  const hlOffX = r * 0.20;
+  const hlOffY = r * 0.24;
+  const hlRx   = r * 0.20;
+  const hlRy   = r * 0.10;
   return `<g data-pc="${pc.player},${pc.idx}" style="cursor:${movable?'pointer':'default'}">
-    <ellipse cx="${cx}" cy="${cy+r+0.5}" rx="${r*0.68}" ry="${shadowRy}" fill="rgba(0,0,0,0.35)" style="pointer-events:none"/>
+    <ellipse cx="${cx}" cy="${cy+r+0.3}" rx="${shadowRx}" ry="${shadowRy}" fill="rgba(0,0,0,0.22)" style="pointer-events:none"/>
     ${pulseRing}
     <g>${bob}
       <defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath></defs>
       <image href="${avatarSrc}" x="${cx-r}" y="${cy-r}" width="${r*2}" height="${r*2}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${cold}" stroke-width="${ringStroke}" style="pointer-events:none"/>
-      <ellipse cx="${cx - r*0.32}" cy="${cy - r*0.4}" rx="${r*0.24}" ry="${r*0.12}" fill="rgba(255,255,255,0.5)" transform="rotate(-25 ${cx - r*0.32} ${cy - r*0.4})" style="pointer-events:none"/>
+      <ellipse cx="${cx-hlOffX}" cy="${cy-hlOffY}" rx="${hlRx}" ry="${hlRy}" fill="rgba(255,255,255,0.32)" transform="rotate(-20 ${cx-hlOffX} ${cy-hlOffY})" style="pointer-events:none"/>
     </g>
   </g>`;
 }
