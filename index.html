@@ -1276,6 +1276,48 @@ function samePhysicalCell(a, b) {
   return dx*dx + dy*dy <= EAT_R2;
 }
 
+// 安全格：每方 path[0] 出发格 + path[8] star cell（走 8 步落点，标准 Ludo 布局）。
+// 四方 path 物理重叠，用像素去重合并成一份 SAFE_SPOTS_PX。
+const SAFE_SPOTS_PX = (() => {
+  const spots = [];
+  for(let p = 0; p < 4; p++){
+    const path = PLAYER_PATHS_PX[p];
+    for(const i of [0, 8]){
+      if(i >= path.length) continue;
+      const xy = path[i];
+      const dup = spots.some(([sx, sy]) => {
+        const dx = xy[0]-sx, dy = xy[1]-sy;
+        return dx*dx + dy*dy <= EAT_R2;
+      });
+      if(!dup) spots.push(xy);
+    }
+  }
+  return spots;
+})();
+
+function isSafeCellAt(x, y){
+  for(const [sx, sy] of SAFE_SPOTS_PX){
+    const dx = x-sx, dy = y-sy;
+    if(dx*dx + dy*dy <= EAT_R2) return true;
+  }
+  return false;
+}
+
+// 每方进入中央通道的入口段（外圈最后一格 → 中央第一格），用于画家入口箭头。
+// 每方 path 末尾 6 格都属于中央直线通道，因此 entryIdx = pathLen - 6。
+const HOME_ENTRY_ARROWS = (() => {
+  const arrows = [];
+  for(let p = 0; p < 4; p++){
+    const path = PLAYER_PATHS_PX[p];
+    const entry = path.length - 6;
+    if(entry < 1) continue;
+    const [ax, ay] = path[entry - 1];
+    const [bx, by] = path[entry];
+    arrows.push({ player: p, ax, ay, bx, by });
+  }
+  return arrows;
+})();
+
 // ============================================================
 // DRAW BOARD
 // ============================================================
@@ -1312,7 +1354,32 @@ function drawBoard(state) {
   const FINISHED_CX = 300, FINISHED_CY = 300;
 
   // ── Board decoration overlay ──
-  // 装饰性 star/chevron 已随旧共用外圈模型移除；board2.jpg 底图已包含视觉提示。
+  // 1) 安全格 star + glow — 棋子踩上去免疫吃子
+  SAFE_SPOTS_PX.forEach(([cx, cy]) => {
+    const s = 6, pts = [];
+    for(let i = 0; i < 10; i++){
+      const a = -Math.PI/2 + i * Math.PI/5;
+      const rr = i%2===0 ? s : s*0.42;
+      pts.push((cx + rr*Math.cos(a)).toFixed(1) + ',' + (cy + rr*Math.sin(a)).toFixed(1));
+    }
+    h += `<g opacity="0.85" style="pointer-events:none">
+      <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="11" fill="url(#safeGlow)"/>
+      <polygon points="${pts.join(' ')}" fill="#FFD53D" stroke="#B45309" stroke-width="0.8" stroke-linejoin="round"/>
+    </g>`;
+  });
+  // 2) 家入口箭头 — 每方 path 从外圈拐向中央通道的位置，玩家色 chevron
+  HOME_ENTRY_ARROWS.forEach(({player, ax, ay, bx, by}) => {
+    const dx = bx - ax, dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const px = -uy, py = ux;
+    const midX = (ax + bx) / 2, midY = (ay + by) / 2;
+    const tipX = midX + ux * 6, tipY = midY + uy * 6;
+    const b1X = midX - ux * 3.5 + px * 4, b1Y = midY - uy * 3.5 + py * 4;
+    const b2X = midX - ux * 3.5 - px * 4, b2Y = midY - uy * 3.5 - py * 4;
+    const col = P_COLORS[player], cold = P_DARK[player];
+    h += `<polygon points="${tipX.toFixed(1)},${tipY.toFixed(1)} ${b1X.toFixed(1)},${b1Y.toFixed(1)} ${b2X.toFixed(1)},${b2Y.toFixed(1)}" fill="${col}" stroke="${cold}" stroke-width="0.6" stroke-linejoin="round" opacity="0.9" style="pointer-events:none"/>`;
+  });
 
   // 基地棋子槽：有玩家加入该颜色才叠加角色图片
   {
@@ -1595,9 +1662,18 @@ async function doMove(pi, ki) {
         return;
       }
 
-      // 吃子特效 + 被吃棋子飞回基地
       const [ox, oy] = pieceToPixel(other);
       const sc = boardToScreen(ox, oy);
+
+      // 安全格保护：被吃棋子落在 star 格上免疫
+      if(isSafeCellAt(ox, oy)){
+        safeZoneEffect(sc.x, sc.y);
+        sndSafe();
+        log(`安全格保护！🛡️ 无法吃子`);
+        return;
+      }
+
+      // 吃子特效 + 被吃棋子飞回基地
       alienEatEffect(sc.x, sc.y);
       flyPieceHome(other, sc.x, sc.y);
       other.pos = -1;
@@ -1886,6 +1962,7 @@ function updateUI() {
             const res=nextPos(p,gs.diceVal);
             if(!res || res.finished) return false;
             const [rx,ry] = PLAYER_PATHS_PX[Number(p.player)][res.pos];
+            if(isSafeCellAt(rx, ry)) return false; // 落点是安全格 → 吃不到
             return gs.pieces.some(o=>{
               if(Number(o.player)===cur || o.finished || Number(o.pos)===-1) return false;
               const [ox,oy] = pieceToPixel(o);
