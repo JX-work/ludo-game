@@ -964,7 +964,7 @@ function safeZoneEffect(screenX, screenY) {
 function flyPieceHome(pc, fromX, fromY) {
   const board = document.getElementById('ludo-board');
   if(!board) return;
-  const slot = BASE_SLOTS_XY[Number(pc.player)]?.[Number(pc.idx)];
+  const slot = BASE_SLOTS_PX[Number(pc.player)]?.[Number(pc.idx)];
   if(!slot) return;
   const rect = board.getBoundingClientRect();
   const scX = rect.width/600, scY = rect.height/600;
@@ -990,8 +990,9 @@ function flyPieceHome(pc, fromX, fromY) {
   setTimeout(() => el.remove(), 850);
 }
 
-// Convert SVG board coords (from LUDO_OUTER_XY / HOME_DISPLAY_XY / BASE_SLOTS_XY)
-// to screen coords, honoring the board's rendered rect on the page.
+// Convert SVG board coords (0-600) to screen (page) coords, honoring the
+// board's actual rendered rect. Board坐标系与 SVG viewBox 严格 1:1（board2.jpg
+// preserveAspectRatio="none" 铺满），无 letterbox 需要补偿。
 function boardToScreen(svgX, svgY) {
   const board = document.getElementById('ludo-board');
   if(!board) return {x:0, y:0};
@@ -1238,91 +1239,42 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================================
-// BOARD PATH - 标准飞行棋52格外圈路径 (row,col)
+// BOARD COORDS — 从 ludo_coords_final.json 手动标定
+// 四方独立路线模型：0=红(左上) 1=黄(右上) 2=蓝(右下) 3=绿(左下)
+// 每方独立的 base_slots (4窝) + path (完整路线，path[0]是出基地落点，末尾是终点)
+// 坐标为相对比例 0-1，乘以 BOARD_S (600) 得像素坐标（对齐 SVG viewBox 0-600）
 // ============================================================
-// 30×30 网格（每视觉格 = 2 网格单位），board2.jpg 作为底图
-// 标准 15×15 十字飞行棋外圈 52 格，顺时针：四方出发点间距 13 格
-const LUDO_OUTER = [
-  // 0-4: 红方出发 (visual row 6, col 1→5)
-  {r:13,c:3},{r:13,c:5},{r:13,c:7},{r:13,c:9},{r:13,c:11},
-  // 5-10: 左上行 (visual col 6, row 5→0)
-  {r:11,c:13},{r:9,c:13},{r:7,c:13},{r:5,c:13},{r:3,c:13},{r:1,c:13},
-  // 11-12: 顶横 (visual row 0, col 7→8) — 12=黄方 HOME_ENTRY
-  {r:1,c:15},{r:1,c:17},
-  // 13-17: 黄方出发 (visual col 8, row 1→5)
-  {r:3,c:17},{r:5,c:17},{r:7,c:17},{r:9,c:17},{r:11,c:17},
-  // 18-23: 右臂顶横 (visual row 6, col 9→14)
-  {r:13,c:19},{r:13,c:21},{r:13,c:23},{r:13,c:25},{r:13,c:27},{r:13,c:29},
-  // 24-25: 右边缘 (visual col 14, row 7→8) — 25=蓝方 HOME_ENTRY
-  {r:15,c:29},{r:17,c:29},
-  // 26-30: 蓝方出发 (visual row 8, col 13→9)
-  {r:17,c:27},{r:17,c:25},{r:17,c:23},{r:17,c:21},{r:17,c:19},
-  // 31-36: 右下行 (visual col 8, row 9→14)
-  {r:19,c:17},{r:21,c:17},{r:23,c:17},{r:25,c:17},{r:27,c:17},{r:29,c:17},
-  // 37-38: 底横 (visual row 14, col 7→6) — 38=绿方 HOME_ENTRY
-  {r:29,c:15},{r:29,c:13},
-  // 39-43: 绿方出发 (visual col 6, row 13→9)
-  {r:27,c:13},{r:25,c:13},{r:23,c:13},{r:21,c:13},{r:19,c:13},
-  // 44-49: 左臂底横 (visual row 8, col 5→0)
-  {r:17,c:11},{r:17,c:9},{r:17,c:7},{r:17,c:5},{r:17,c:3},{r:17,c:1},
-  // 50-51: 左边缘 (visual col 0, row 7→6) — 51=红方 HOME_ENTRY
-  {r:15,c:1},{r:13,c:1}
-];
+const BOARD_S = 600;
+const LUDO_COORDS = {"players":{"0_红":{"base_slots":[[0.0595,0.0811],[0.1595,0.0852],[0.0553,0.1852],[0.1623,0.1894]],"path":[[0.0331,0.3074],[0.09,0.3422],[0.1595,0.3199],[0.222,0.3186],[0.2748,0.3463],[0.3248,0.2991],[0.3025,0.238],[0.3053,0.1741],[0.3262,0.1144],[0.3887,0.0824],[0.4428,0.0852],[0.4998,0.0588],[0.5553,0.088],[0.6137,0.0894],[0.672,0.1102],[0.6942,0.1769],[0.7012,0.2311],[0.6775,0.3019],[0.7248,0.3477],[0.7887,0.3158],[0.84,0.3227],[0.9067,0.3449],[0.9609,0.4255],[0.9567,0.5046],[0.9595,0.5699],[0.9025,0.6463],[0.8442,0.6713],[0.7887,0.6727],[0.7289,0.6463],[0.6803,0.6894],[0.6984,0.7644],[0.7012,0.8269],[0.6762,0.8868],[0.6178,0.9102],[0.5609,0.9172],[0.5067,0.9465],[0.4456,0.913],[0.3887,0.9102],[0.3345,0.8908],[0.3095,0.8199],[0.3137,0.7602],[0.3331,0.6894],[0.2859,0.6449],[0.2206,0.6699],[0.1637,0.6713],[0.1012,0.6519],[0.0442,0.5769],[0.0442,0.5019],[0.1025,0.5035],[0.1664,0.5033],[0.2359,0.5033],[0.2914,0.5019],[0.3609,0.5074],[0.4303,0.5047]]},"1_黄":{"base_slots":[[0.8456,0.0699],[0.947,0.0699],[0.847,0.1741],[0.9512,0.1727]],"path":[[0.7095,0.0533],[0.672,0.1102],[0.6942,0.1769],[0.7012,0.2311],[0.6775,0.3019],[0.7248,0.3477],[0.7887,0.3158],[0.84,0.3227],[0.9067,0.3449],[0.9609,0.4255],[0.9567,0.5046],[0.9595,0.5699],[0.9025,0.6463],[0.8442,0.6713],[0.7887,0.6727],[0.7289,0.6463],[0.6803,0.6894],[0.6984,0.7644],[0.7012,0.8269],[0.6762,0.8868],[0.6178,0.9102],[0.5609,0.9172],[0.5067,0.9465],[0.4456,0.913],[0.3887,0.9102],[0.3345,0.8908],[0.3095,0.8199],[0.3137,0.7602],[0.3331,0.6894],[0.2859,0.6449],[0.2206,0.6699],[0.1637,0.6713],[0.1012,0.6519],[0.0442,0.5769],[0.0442,0.5019],[0.0456,0.4241],[0.09,0.3422],[0.1595,0.3199],[0.222,0.3186],[0.2748,0.3463],[0.3248,0.2991],[0.3025,0.238],[0.3053,0.1741],[0.3262,0.1144],[0.3887,0.0824],[0.4428,0.0852],[0.4998,0.0588],[0.4998,0.1144],[0.4998,0.1699],[0.5012,0.2366],[0.4998,0.3074],[0.4998,0.3713],[0.4984,0.4422]]},"2_蓝":{"base_slots":[[0.847,0.8255],[0.947,0.8227],[0.8414,0.9241],[0.9442,0.9241]],"path":[[0.9623,0.6922],[0.9025,0.6463],[0.8442,0.6713],[0.7887,0.6727],[0.7289,0.6463],[0.6803,0.6894],[0.6984,0.7644],[0.7012,0.8269],[0.6762,0.8868],[0.6178,0.9102],[0.5609,0.9172],[0.5067,0.9465],[0.4456,0.913],[0.3887,0.9102],[0.3345,0.8908],[0.3095,0.8199],[0.3137,0.7602],[0.3331,0.6894],[0.2859,0.6449],[0.2206,0.6699],[0.1637,0.6713],[0.1012,0.6519],[0.0442,0.5769],[0.0442,0.5019],[0.0456,0.4241],[0.09,0.3422],[0.1595,0.3199],[0.222,0.3186],[0.2748,0.3463],[0.3248,0.2991],[0.3025,0.238],[0.3053,0.1741],[0.3262,0.1144],[0.3887,0.0824],[0.4428,0.0852],[0.4998,0.0588],[0.5553,0.088],[0.6137,0.0894],[0.672,0.1102],[0.6942,0.1769],[0.7012,0.2311],[0.6775,0.3019],[0.7248,0.3477],[0.7887,0.3158],[0.84,0.3227],[0.9067,0.3449],[0.9609,0.4255],[0.9567,0.5046],[0.897,0.5019],[0.8317,0.5005],[0.7664,0.5005],[0.697,0.5047],[0.6331,0.5033],[0.5762,0.5033]]},"3_绿":{"base_slots":[[0.0789,0.8172],[0.1789,0.8144],[0.0762,0.9199],[0.1817,0.9144]],"path":[[0.2914,0.9436],[0.3345,0.8908],[0.3095,0.8199],[0.3137,0.7602],[0.3331,0.6894],[0.2859,0.6449],[0.2206,0.6699],[0.1637,0.6713],[0.1012,0.6519],[0.0442,0.5769],[0.0852,0.5572],[0.0442,0.5019],[0.0456,0.4241],[0.09,0.3422],[0.1595,0.3199],[0.222,0.3186],[0.2311,0.2988],[0.3248,0.2991],[0.3025,0.238],[0.3053,0.1741],[0.3262,0.1144],[0.3887,0.0824],[0.4428,0.0852],[0.4998,0.0588],[0.5553,0.088],[0.672,0.1102],[0.6942,0.1769],[0.7012,0.2311],[0.6775,0.3019],[0.7248,0.3477],[0.7887,0.3158],[0.84,0.3227],[0.9067,0.3449],[0.9102,0.3822],[0.9609,0.4255],[0.9567,0.5046],[0.9595,0.5699],[0.9025,0.6463],[0.8442,0.6713],[0.7887,0.6727],[0.7289,0.6463],[0.6803,0.6894],[0.6449,0.7141],[0.6984,0.7644],[0.7012,0.8269],[0.6762,0.8868],[0.5609,0.9172],[0.5067,0.9465],[0.5067,0.8813],[0.5039,0.8202],[0.5067,0.759],[0.5039,0.6924],[0.5067,0.6285],[0.5039,0.5674]]}}};
 
-// 玩家起始格索引：四方均匀间隔 13 格
-const P_START = [0, 13, 26, 39];
-// HOME_ENTRY：各玩家起始 idx 的前一格（绕回 52-cell loop）
-const P_HOME_ENTRY = [51, 12, 25, 38];
+const PLAYER_KEYS = ['0_红','1_黄','2_蓝','3_绿'];
+const PLAYER_PATHS_PX = PLAYER_KEYS.map(k =>
+  LUDO_COORDS.players[k].path.map(([x,y]) => [x*BOARD_S, y*BOARD_S])
+);
+const BASE_SLOTS_PX = PLAYER_KEYS.map(k =>
+  LUDO_COORDS.players[k].base_slots.map(([x,y]) => [x*BOARD_S, y*BOARD_S])
+);
+const PATH_LEN = PLAYER_PATHS_PX.map(p => p.length);
+const EAT_R = BOARD_S * 0.02;             // 吃子/同格判定阈值（棋盘 2%）
+const EAT_R2 = EAT_R * EAT_R;
 
-const DISPLAY_PATH = LUDO_OUTER;
+// pc.pos 语义（新）：-1=基地；0..PATH_LEN[player]-1=该方 path 索引；末尾即终点
+function pieceToPixel(pc) {
+  const player = Number(pc.player);
+  const idx = Number(pc.idx);
+  const pos = Number(pc.pos);
+  if(pos === -1) return BASE_SLOTS_PX[player][idx];
+  const path = PLAYER_PATHS_PX[player];
+  return path[Math.max(0, Math.min(pos, path.length - 1))];
+}
 
-// 终点跑道坐标（5 格/家，第 5 格 = 终点）
-const HOME_DISPLAY = [
-  [{r:15,c:3},{r:15,c:5},{r:15,c:7},{r:15,c:9},{r:15,c:11}],    // 红：左臂中横向右
-  [{r:3,c:15},{r:5,c:15},{r:7,c:15},{r:9,c:15},{r:11,c:15}],    // 黄：上臂中竖向下
-  [{r:15,c:27},{r:15,c:25},{r:15,c:23},{r:15,c:21},{r:15,c:19}],// 蓝：右臂中横向左
-  [{r:27,c:15},{r:25,c:15},{r:23,c:15},{r:21,c:15},{r:19,c:15}],// 绿：下臂中竖向上
-];
-
-// 安全格：4 个出发点 + 4 个 star（各 +8 从 start 起）
-const SAFE_IDX = [0, 13, 26, 39, 8, 21, 34, 47];
-
-// ============================================================
-// BOARD PIXEL COORDS — measured from board2.jpg (Hough circle detection
-// + segment-based interpolation). Replaces the old "grid × 20" formula
-// which assumed a uniform 15×15 layout the actual image doesn't honor.
-// ── Base slot centers (16): all detected, ≤5px accuracy
-// ── Home lane cell centers (20): 18 detected + 2 interpolated
-// ── Outer path cell centers (52): 12 straight segments, snap-to-line
-//    for edges, uniform interp between endpoints; matches image bounds
-//    (X 24.5-574.4, Y 51-547.5) and arm inner rows/cols (265.6/351.1/263.2/354.1)
-// ============================================================
-const BASE_SLOTS_XY = [
-  [[33.8,47.6], [95.4,47.3], [33.8,109.4], [94.8,108.8]],       // p0 red top-left
-  [[505.2,41.2], [567.6,40.9], [504.9,104.2], [568.2,104.7]],   // p1 yellow top-right
-  [[505.8,491.5], [567.3,491.5], [505.2,553.9], [567.0,553.9]], // p2 blue bottom-right
-  [[43.2,487.4], [105.3,486.8], [43.2,549.8], [105.9,549.8]],   // p3 green bottom-left
-];
-const HOME_DISPLAY_XY = [
-  [[61.4,301.3], [100.0,301.3], [139.0,301.0], [177.7,301.3], [216.9,301.3]],  // p0
-  [[299.0,64.4], [299.0,103.9], [299.0,143.4], [299.0,183.0], [298.7,222.8]],  // p1
-  [[537.7,301.3], [498.8,301.3], [460.1,301.6], [420.6,301.6], [381.6,301.6]], // p2
-  [[302.5,547.1], [302.1,517.8], [301.6,488.5], [299.9,440.2], [299.9,392.1]], // p3
-];
-const LUDO_OUTER_XY = [
-  [74.5,263.2],[114.5,263.2],[154.5,263.2],[194.5,263.2],[234.5,263.2],
-  [265.6,228.3],[265.6,192.8],[265.6,157.4],[265.6,121.9],[265.6,86.5],[265.6,51.0],
-  [308.5,51.0],[348.8,51.0],
-  [351.1,92.6],[351.1,126.5],[351.1,160.4],[351.1,194.4],[351.1,228.3],
-  [369.6,263.2],[410.6,263.2],[451.5,263.2],[492.5,263.2],[533.4,263.2],[574.4,263.2],
-  [574.4,301.6],[574.4,343.2],
-  [535.4,354.1],[496.0,354.1],[456.7,354.1],[417.4,354.1],[378.0,354.1],
-  [351.1,396.8],[351.1,427.0],[351.1,457.3],[351.1,487.5],[351.1,517.8],[351.1,548.0],
-  [308.5,547.5],[268.2,547.5],
-  [265.6,546.2],[265.6,506.8],[265.6,467.3],[265.6,427.9],[265.6,388.4],
-  [224.8,354.1],[184.7,354.1],[144.7,354.1],[104.6,354.1],[64.6,354.1],[24.5,354.1],
-  [24.5,300.4],[24.5,263.2]
-];
+// 两个棋子当前是否落在同一物理格（像素距离 ≤ EAT_R）
+function samePhysicalCell(a, b) {
+  const [ax, ay] = pieceToPixel(a);
+  const [bx, by] = pieceToPixel(b);
+  const dx = ax-bx, dy = ay-by;
+  return dx*dx + dy*dy <= EAT_R2;
+}
 
 // ============================================================
 // DRAW BOARD
@@ -1333,8 +1285,8 @@ function drawBoard(state) {
   svg.setAttribute('viewBox', `0 0 ${S} ${S}`);
   let h = '';
 
-  // 棋盘图片作为背景
-  h += `<image href="./imgs/board2.jpg" x="0" y="0" width="600" height="600" preserveAspectRatio="xMidYMid meet"/>`;
+  // 棋盘图片作为背景（铺满 SVG 区域，与 ludo_coords_final.json 相对坐标系严格对齐）
+  h += `<image href="./imgs/board2.jpg" x="0" y="0" width="600" height="600" preserveAspectRatio="none"/>`;
 
   // Shared SVG defs: piece highlight gradient + drop-shadow filter + safe-cell glow
   h += `<defs>
@@ -1360,49 +1312,12 @@ function drawBoard(state) {
   const FINISHED_CX = 300, FINISHED_CY = 300;
 
   // ── Board decoration overlay ──
-  // 1) Safe-cell stars on the 4 mid-lane safe cells (not on starts — board2.jpg
-  //    already paints inward arrows there)
-  [8, 21, 34, 47].forEach(idx => {
-    if(idx >= 0 && idx < LUDO_OUTER_XY.length) {
-      const [cx, cy] = LUDO_OUTER_XY[idx];
-      const s = 6, pts = [];
-      for(let i = 0; i < 10; i++){
-        const a = -Math.PI/2 + i * Math.PI/5;
-        const rr = i%2===0 ? s : s*0.42;
-        pts.push((cx + rr*Math.cos(a)).toFixed(1) + ',' + (cy + rr*Math.sin(a)).toFixed(1));
-      }
-      h += `<g opacity="0.9" style="pointer-events:none">
-        <circle cx="${cx}" cy="${cy}" r="12" fill="url(#safeGlow)"/>
-        <polygon points="${pts.join(' ')}" fill="#FFD53D" stroke="#B45309" stroke-width="0.8" stroke-linejoin="round"/>
-      </g>`;
-    }
-  });
-  // 2) Home-entry chevron arrows pointing inward (cardinal)
-  const CHEVRON_DIR = [
-    { dx:  1, dy:  0 }, // p0 red: right
-    { dx:  0, dy:  1 }, // p1 yellow: down
-    { dx: -1, dy:  0 }, // p2 blue: left
-    { dx:  0, dy: -1 }, // p3 green: up
-  ];
-  P_HOME_ENTRY.forEach((idx, pi) => {
-    if(idx >= 0 && idx < LUDO_OUTER_XY.length) {
-      const [cx, cy] = LUDO_OUTER_XY[idx];
-      const {dx, dy} = CHEVRON_DIR[pi];
-      const col = P_COLORS[pi], cold = P_DARK[pi];
-      const ox = dx * 5, oy = dy * 5;
-      const tx = cx + ox, ty = cy + oy;
-      const px = -dy * 2.5, py = dx * 2.5;
-      const p1 = `${(tx + dx*2.5).toFixed(1)},${(ty + dy*2.5).toFixed(1)}`;
-      const p2 = `${(tx - dx*1.5 + px).toFixed(1)},${(ty - dy*1.5 + py).toFixed(1)}`;
-      const p3 = `${(tx - dx*1.5 - px).toFixed(1)},${(ty - dy*1.5 - py).toFixed(1)}`;
-      h += `<polygon points="${p1} ${p2} ${p3}" fill="${col}" stroke="${cold}" stroke-width="0.5" stroke-linejoin="round" opacity="0.85" style="pointer-events:none"/>`;
-    }
-  });
+  // 装饰性 star/chevron 已随旧共用外圈模型移除；board2.jpg 底图已包含视觉提示。
 
   // 基地棋子槽：有玩家加入该颜色才叠加角色图片
   {
     const pd = JSON.parse(localStorage.getItem('ludo_players')||'[]');
-    BASE_SLOTS_XY.forEach((slots, pi) => {
+    BASE_SLOTS_PX.forEach((slots, pi) => {
       const playerData = pd[pi];
       const avatarSrc = playerData ? playerData.src : '';
       if (!avatarSrc) return;
@@ -1416,13 +1331,21 @@ function drawBoard(state) {
   }
 
   if(state) {
-    const posMap = {};
-    state.pieces.forEach(pc => {
-      if(!pc.finished && pc.pos >= 0 && pc.pos < LUDO_OUTER_XY.length) {
-        if(!posMap[pc.pos]) posMap[pc.pos] = [];
-        posMap[pc.pos].push(pc);
+    // 像素聚簇：路径上（pos >= 0 且未 finished）的棋子按物理距离分组，
+    // 用于同格叠放偏移。四方 path 在外圈物理重叠，必须按像素判定同格。
+    const onPath = state.pieces.filter(pc =>
+      !pc.finished && Number(pc.pos) !== -1
+    );
+    const groups = []; // 每组 = 落在同一物理格的棋子数组
+    onPath.forEach(pc => {
+      let found = false;
+      for(const g of groups) {
+        if(samePhysicalCell(pc, g[0])) { g.push(pc); found = true; break; }
       }
+      if(!found) groups.push([pc]);
     });
+    const groupOf = new Map();
+    groups.forEach(g => g.forEach(pc => groupOf.set(pc, g)));
 
     state.pieces.forEach(pc => {
       if(pc.finished) {
@@ -1432,33 +1355,29 @@ function drawBoard(state) {
         h += drawPiece(cx, cy, pc, state);
         return;
       }
-      if(pc.pos === -1) {
-        // In base — use measured slot xy
-        const slot = BASE_SLOTS_XY[pc.player]?.[pc.idx];
-        if(slot) h += drawPiece(slot[0], slot[1], pc, state);
-      } else if(pc.pos >= 0 && pc.pos < LUDO_OUTER_XY.length) {
-        const [cx0, cy0] = LUDO_OUTER_XY[pc.pos];
-        const stack = posMap[pc.pos] || [pc];
-        const si = stack.indexOf(pc);
-        let ox = 0, oy = 0;
-        if(stack.length === 2) {
-          const offs2 = [-14, 14];
-          ox = offs2[si] || 0;
-        } else if(stack.length === 3) {
-          const offs3 = [[-14,-8],[14,-8],[0,12]];
-          ox = offs3[si] ? offs3[si][0] : 0;
-          oy = offs3[si] ? offs3[si][1] : 0;
-        } else if(stack.length >= 4) {
-          const offs4 = [[-10,-10],[10,-10],[-10,10],[10,10]];
-          ox = offs4[si] ? offs4[si][0] : 0;
-          oy = offs4[si] ? offs4[si][1] : 0;
-        }
-        h += drawPieceAvatar(cx0 + ox, cy0 + oy, pc, state);
-      } else if(pc.pos === -2 && pc.homePos >= 0) {
-        const lane = HOME_DISPLAY_XY[pc.player];
-        const cell = lane && lane[Math.min(pc.homePos, lane.length-1)];
-        if(cell) h += drawPiece(cell[0], cell[1], pc, state);
+      if(Number(pc.pos) === -1) {
+        const [cx, cy] = pieceToPixel(pc);
+        h += drawPiece(cx, cy, pc, state);
+        return;
       }
+      // 在自己 path 上
+      const [cx0, cy0] = pieceToPixel(pc);
+      const stack = groupOf.get(pc) || [pc];
+      const si = stack.indexOf(pc);
+      let ox = 0, oy = 0;
+      if(stack.length === 2) {
+        const offs2 = [-14, 14];
+        ox = offs2[si] || 0;
+      } else if(stack.length === 3) {
+        const offs3 = [[-14,-8],[14,-8],[0,12]];
+        ox = offs3[si] ? offs3[si][0] : 0;
+        oy = offs3[si] ? offs3[si][1] : 0;
+      } else if(stack.length >= 4) {
+        const offs4 = [[-10,-10],[10,-10],[-10,10],[10,10]];
+        const o = offs4[si % 4];
+        if(o) { ox = o[0]; oy = o[1]; }
+      }
+      h += drawPieceAvatar(cx0 + ox, cy0 + oy, pc, state);
     });
   }
 
@@ -1582,7 +1501,7 @@ async function broadcastAction(payload, retries = 3) {
 }
 
 // JSONB 反序列化后数字字段可能变字符串。所有 gs 入口(本地新建/远端接收)都过一遍这个,
-// 避免下游 `pc.pos === -1` / `.diceVal === 6` / `SAFE_IDX.includes(pos)` 之类严格 === 踩雷。
+// 避免下游 `pc.pos === -1` / `.diceVal === 6` 之类严格 === 踩雷。
 function normalizeGs(g){
   if(!g || typeof g !== 'object') return g;
   if(Array.isArray(g.activePlayers)) g.activePlayers = g.activePlayers.map(Number);
@@ -1620,33 +1539,21 @@ function canMove(pc, dice, state) {
   dice = Number(dice);
   if(!dice || pc.finished) return false;
   if(Number(pc.pos) === -1) return dice === 6;
-  const np = nextPos(pc, dice);
-  return np !== null;
+  return nextPos(pc, dice) !== null;
 }
 
+// 四方独立路线：pc.pos 是本方 path 的索引（0..pathLen-1）
+// 掷 6 从基地 → path[0]；沿 path 顺序前进；超过 path 末尾需精确步数
 function nextPos(pc, dice) {
   dice = Number(dice);
-  if(pc.pos === -1) {
-    return dice === 6 ? {pos:P_START[pc.player], home:false, homePos:-1} : null;
+  const player = Number(pc.player);
+  const pathLen = PATH_LEN[player];
+  if(Number(pc.pos) === -1) {
+    return dice === 6 ? { pos: 0, finished: false } : null;
   }
-  // 计算在外圈的相对位置
-  const start = P_START[pc.player];
-  const homeEntry = P_HOME_ENTRY[pc.player];
-  const L = LUDO_OUTER.length;
-  const rel = (pc.pos - start + L) % L;
-  const heRel = (homeEntry - start + L) % L;
-  const newRel = rel + dice;
-
-  // B7: 从 HOME_ENTRY 掷 1 即进入跑道；hp = lane.length-1 时到达终点
-  if(newRel >= heRel + 1) {
-    const hp = newRel - heRel - 1;
-    const lane = HOME_DISPLAY[pc.player];
-    if(hp < lane.length) {
-      return {pos:-2, home:true, homePos:hp, finished: hp === lane.length - 1};
-    }
-    return null; // 超过终点不能走，需精确步数
-  }
-  return {pos:(start + newRel % L) % L, home:false, homePos:-1};
+  const newPos = Number(pc.pos) + dice;
+  if(newPos > pathLen - 1) return null; // 超过终点，需精确步数
+  return { pos: newPos, finished: newPos === pathLen - 1 };
 }
 
 async function doMove(pi, ki) {
@@ -1660,63 +1567,43 @@ async function doMove(pi, ki) {
 
   sndMove();
 
-  if(result.home) {
-    pc.pos = -2;
-    if(result.finished) {
-      // B16: 终点统一用 HOME_DISPLAY[player].length-1，避免魔法数字
-      pc.finished = true;
-      pc.homePos = HOME_DISPLAY[pc.player].length - 1;
-      log(`${P_NAMES[pi]} 棋子${ki+1} 到达终点！🏆`);
-      audio.homeEntry();
-    } else {
-      pc.homePos = result.homePos;
-      log(`${P_NAMES[pi]} 棋子${ki+1} 进入终点跑道第${result.homePos+1}格`);
-      audio.homeEntry();
-    }
+  pc.pos = result.pos;
+  if(result.finished) {
+    pc.finished = true;
+    log(`${P_NAMES[pi]} 棋子${ki+1} 到达终点！🏆`);
+    audio.homeEntry();
   } else {
-    pc.pos = result.pos;
     log(`${P_NAMES[pi]} 掷了 ${gs.diceVal}，棋子${ki+1} 前进`);
     // 棋子跳跃动画
-    if(pc.pos < LUDO_OUTER_XY.length) {
-      const [px, py] = LUDO_OUTER_XY[pc.pos];
-      animatePieceJump(px, py);
-    }
-    // 吃子
+    const [px, py] = pieceToPixel(pc);
+    animatePieceJump(px, py);
+
+    // 吃子：像素距离判定同格（四方 path 在物理外圈是重叠的）
     gs.pieces.forEach(other => {
-      if(Number(other.player)===Number(pi)||Number(other.pos)!==Number(pc.pos)||other.finished||Number(other.pos)===-1) return;
-      // B18: 叠子保护 — 目标格上有 2 个或以上同方棋子则不能吃
+      if(Number(other.player) === Number(pi)) return;
+      if(other.finished || Number(other.pos) === -1) return;
+      if(!samePhysicalCell(pc, other)) return;
+
+      // 叠子保护 — 目标格上有 2 个或以上同方棋子则不能吃
       const sameTeamOnCell = gs.pieces.filter(p =>
         Number(p.player) === Number(other.player) &&
-        Number(p.pos) === Number(other.pos) &&
-        !p.finished
+        !p.finished && Number(p.pos) !== -1 &&
+        samePhysicalCell(p, other)
       );
       if(sameTeamOnCell.length >= 2){
         log(`${P_NAMES[other.player]} 叠子保护！💎 无法吃子`);
         return;
       }
-      const safe = SAFE_IDX.includes(Number(pc.pos));
-      if(!safe) {
-        // 吃子特效 + 被吃棋子飞回基地
-        if(other.pos < LUDO_OUTER_XY.length) {
-          const [ox, oy] = LUDO_OUTER_XY[other.pos];
-          const sc = boardToScreen(ox, oy);
-          alienEatEffect(sc.x, sc.y);
-          flyPieceHome(other, sc.x, sc.y);
-        }
-        other.pos = -1; other.homePos = -1;
-        sndEat(); showEatPopup();
-        log(`${P_NAMES[pi]} 吃掉了 ${P_NAMES[other.player]} 的棋子！💥 送回基地`);
-        gs.extraRoll = true; // B1: 吃子后再掷一次
-      } else {
-        // 安全格特效
-        if(pc.pos < LUDO_OUTER_XY.length) {
-          const [px2, py2] = LUDO_OUTER_XY[pc.pos];
-          const sc = boardToScreen(px2, py2);
-          safeZoneEffect(sc.x, sc.y);
-        }
-        sndSafe();
-        log(`安全格保护！无法吃子 🛡️`);
-      }
+
+      // 吃子特效 + 被吃棋子飞回基地
+      const [ox, oy] = pieceToPixel(other);
+      const sc = boardToScreen(ox, oy);
+      alienEatEffect(sc.x, sc.y);
+      flyPieceHome(other, sc.x, sc.y);
+      other.pos = -1;
+      sndEat(); showEatPopup();
+      log(`${P_NAMES[pi]} 吃掉了 ${P_NAMES[other.player]} 的棋子！💥 送回基地`);
+      gs.extraRoll = true; // 吃子后再掷一次
     });
   }
 
@@ -1997,7 +1884,14 @@ function updateUI() {
           const canCapture=myPcs.some(p=>{
             if(p.pos<0) return false;
             const res=nextPos(p,gs.diceVal);
-            return res&&!res.home&&gs.pieces.some(o=>Number(o.player)!==cur&&o.pos===res.pos&&!o.finished&&!SAFE_IDX.includes(res.pos));
+            if(!res || res.finished) return false;
+            const [rx,ry] = PLAYER_PATHS_PX[Number(p.player)][res.pos];
+            return gs.pieces.some(o=>{
+              if(Number(o.player)===cur || o.finished || Number(o.pos)===-1) return false;
+              const [ox,oy] = pieceToPixel(o);
+              const dx=rx-ox, dy=ry-oy;
+              return dx*dx + dy*dy <= EAT_R2;
+            });
           });
           if(canCapture){ mh.textContent='⚠️ 可以吃掉对方棋子！'; mh.style.color='var(--warning)'; }
           else { mh.textContent='👆 点击你的棋子移动'; mh.style.color='var(--success)'; }
@@ -2457,8 +2351,8 @@ function handleRemoteAction(action){
       if(!op) return;
       const opPos = Number(op.pos), npPos = Number(np.pos);
       // 被吃：从路径回到基地(视觉飞回)
-      if(opPos >= 0 && opPos < LUDO_OUTER_XY.length && npPos === -1){
-        const [ox, oy] = LUDO_OUTER_XY[opPos];
+      if(opPos >= 0 && npPos === -1){
+        const [ox, oy] = pieceToPixel(op);
         const sc = boardToScreen(ox, oy);
         alienEatEffect(sc.x, sc.y);
         showEatPopup();
@@ -2466,8 +2360,8 @@ function handleRemoteAction(action){
         sndEat();
       }
       // 移动：路径上位置变化
-      if(opPos !== npPos && npPos >= 0 && npPos < LUDO_OUTER_XY.length && !np.finished){
-        const [px, py] = LUDO_OUTER_XY[npPos];
+      if(opPos !== npPos && npPos >= 0 && !np.finished){
+        const [px, py] = pieceToPixel(np);
         animatePieceJump(px, py);
       }
     });
