@@ -110,21 +110,22 @@ async function deleteRoom(env, rid) {
 async function joinRoom(env, rid, body) {
   const { id, nickname, avatar_id, color_idx, player_idx, is_ready } = body || {};
   if (!id || !nickname || !avatar_id) return json({ error: 'missing_fields' }, 400);
-  const existing = await env.DB.prepare(
-    'SELECT id FROM ludo_players WHERE id = ? AND room_id = ?'
-  ).bind(id, rid).first();
-  if (existing) {
-    await env.DB.prepare(
-      `UPDATE ludo_players
-          SET nickname = ?, avatar_id = ?, color_idx = ?, player_idx = ?, is_ready = ?
-        WHERE id = ? AND room_id = ?`
-    ).bind(nickname, avatar_id, Number(color_idx), Number(player_idx), is_ready ? 1 : 0, id, rid).run();
-  } else {
-    await env.DB.prepare(
-      `INSERT INTO ludo_players (id, room_id, nickname, avatar_id, color_idx, player_idx, is_ready)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(id, rid, nickname, avatar_id, Number(color_idx), Number(player_idx), is_ready ? 1 : 0).run();
-  }
+  // Upsert: ludo_players.id is a global PRIMARY KEY, so a player joining a
+  // NEW room while an old (id, other_room) row still exists (e.g. host left
+  // without cleanup) would collide → SQLITE_CONSTRAINT_PRIMARYKEY → 500.
+  // ON CONFLICT(id) DO UPDATE moves the row to the new room in one shot,
+  // covering both cases: same-room reconnect and cross-room re-join.
+  await env.DB.prepare(
+    `INSERT INTO ludo_players (id, room_id, nickname, avatar_id, color_idx, player_idx, is_ready)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       room_id    = excluded.room_id,
+       nickname   = excluded.nickname,
+       avatar_id  = excluded.avatar_id,
+       color_idx  = excluded.color_idx,
+       player_idx = excluded.player_idx,
+       is_ready   = excluded.is_ready`
+  ).bind(id, rid, nickname, avatar_id, Number(color_idx), Number(player_idx), is_ready ? 1 : 0).run();
   return json({ ok: true });
 }
 
