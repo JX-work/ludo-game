@@ -1407,7 +1407,7 @@ function drawBoard(state) {
       if (!avatarSrc) return;
       slots.forEach((slot, si) => {
         const [cx, cy] = slot;
-        const rr = 14; // base slot avatar radius
+        const rr = isMobileNow() ? 16 : 14; // base slot avatar radius (mobile boost)
         h += `<defs><clipPath id="base_${pi}_${si}"><circle cx="${cx}" cy="${cy}" r="${rr}"/></clipPath></defs>`;
         h += `<image href="${avatarSrc}" x="${cx-rr}" y="${cy-rr}" width="${rr*2}" height="${rr*2}" clip-path="url(#base_${pi}_${si})" preserveAspectRatio="xMidYMid slice"/>`;
       });
@@ -1506,6 +1506,9 @@ function _renderPiece(cx, cy, pc, state, r) {
   const hlOffY = r * 0.24;
   const hlRx   = r * 0.20;
   const hlRy   = r * 0.10;
+  // 手机窄屏点击热区：外层加大 transparent circle，绝对半径 ≥ 22（SVG 单位），
+  // 在 375px 宽的手机上映射到 ≈14px 屏幕，足以吃掉手指点。
+  const hitR = Math.max(r + 4, isMobileNow() ? 22 : 18);
   return `<g data-pc="${pc.player},${pc.idx}" style="cursor:${movable?'pointer':'default'}">
     <ellipse cx="${cx}" cy="${cy+r+0.3}" rx="${shadowRx}" ry="${shadowRy}" fill="rgba(0,0,0,0.22)" style="pointer-events:none"/>
     ${pulseRing}
@@ -1515,11 +1518,13 @@ function _renderPiece(cx, cy, pc, state, r) {
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${cold}" stroke-width="${ringStroke}" style="pointer-events:none"/>
       <ellipse cx="${cx-hlOffX}" cy="${cy-hlOffY}" rx="${hlRx}" ry="${hlRy}" fill="rgba(255,255,255,0.32)" transform="rotate(-20 ${cx-hlOffX} ${cy-hlOffY})" style="pointer-events:none"/>
     </g>
+    <circle cx="${cx}" cy="${cy}" r="${hitR}" fill="transparent"/>
   </g>`;
 }
 
-function drawPieceAvatar(cx, cy, pc, state) { return _renderPiece(cx, cy, pc, state, 16); }
-function drawPiece(cx, cy, pc, state)       { return _renderPiece(cx, cy, pc, state, 15); }
+function isMobileNow(){ return typeof window !== 'undefined' && window.innerWidth <= 640; }
+function drawPieceAvatar(cx, cy, pc, state) { return _renderPiece(cx, cy, pc, state, isMobileNow() ? 18 : 16); }
+function drawPiece(cx, cy, pc, state)       { return _renderPiece(cx, cy, pc, state, isMobileNow() ? 17 : 15); }
 
 
 // ============================================================
@@ -2611,6 +2616,13 @@ function pathEditorCopy() {
 // INIT
 drawBoard(null);
 initGuardians();
+
+// 手机横竖屏切换 / 桌面缩窗时，重画棋盘让棋子/热区半径跟着 isMobileNow() 变
+let _resizeRAF = 0;
+window.addEventListener('resize', () => {
+  if(_resizeRAF) cancelAnimationFrame(_resizeRAF);
+  _resizeRAF = requestAnimationFrame(() => { if(gs) drawBoard(gs); });
+});
 // URL 参数：路径编辑器
 if(new URLSearchParams(location.search).get('debug') === 'path') {
   document.getElementById('screen-path-editor').style.display = 'block';
