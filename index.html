@@ -811,6 +811,23 @@ function animatePieceJump(px, py) {
   }
 }
 
+// 沿自己 path 逐格前进：每格 STEP_MS ms，配合走棋音效 + 落地 ripple。
+// fromPos = -1 表示从基地出发（-1 → 0 记作 1 步）。修改传入 pc 的 pos + 重画 gs。
+async function animatePieceAlongPath(pc, fromPos, toPos) {
+  const STEP_MS = 130;
+  const start = Number(fromPos) === -1 ? 0 : Number(fromPos) + 1;
+  const end = Number(toPos);
+  if(end < start) return;
+  for(let i = start; i <= end; i++){
+    pc.pos = i;
+    if(typeof drawBoard === 'function' && gs) drawBoard(gs);
+    const [px, py] = pieceToPixel(pc);
+    animatePieceJump(px, py);
+    sndMove();
+    if(i < end) await new Promise(r => setTimeout(r, STEP_MS));
+  }
+}
+
 function showEatPopup(){
   const el=document.createElement('div');
   el.className='eat-popup';el.textContent='💥 吃子了！';
@@ -1632,18 +1649,21 @@ async function doMove(pi, ki) {
   const result = nextPos(pc, gs.diceVal);
   if(!result) return;
 
-  sndMove();
+  // 锁 phase 阻止动画期间再次点击（_renderPiece 只在 phase==='move' 时允许 click）
+  const oldPos = Number(pc.pos);
+  gs.phase = 'anim';
+  drawBoard(gs);
 
-  pc.pos = result.pos;
+  // 逐格前进（含 sndMove + landing ripple 每步一次）
+  await animatePieceAlongPath(pc, oldPos, result.pos);
+
   if(result.finished) {
     pc.finished = true;
     log(`${P_NAMES[pi]} 棋子${ki+1} 到达终点！🏆`);
     audio.homeEntry();
+    drawBoard(gs); // 触发中央 finished-cluster 渲染
   } else {
     log(`${P_NAMES[pi]} 掷了 ${gs.diceVal}，棋子${ki+1} 前进`);
-    // 棋子跳跃动画
-    const [px, py] = pieceToPixel(pc);
-    animatePieceJump(px, py);
 
     // 吃子：像素距离判定同格（四方 path 在物理外圈是重叠的）
     gs.pieces.forEach(other => {
@@ -2346,7 +2366,7 @@ function subscribeRoom(rid){
   console.log('🔄 polling room:', rid);
 }
 
-function handleRemoteAction(action){
+async function handleRemoteAction(action){
   console.log('[remote]', action.action_type, 'from:', action.player_id?.slice(-6), 'has_gs:', !!action.game_state);
   if(action.action_type==='start'){
     if(!action.game_state) return;
@@ -2419,29 +2439,52 @@ function handleRemoteAction(action){
     const newPieces = action.game_state.pieces || [];
     gs = normalizeGs(action.game_state);
     numPlayers = gs.activePlayers?.length || Number(gs.players) || 4;
-    sndMove();
     console.log('[handleRemoteAction move] myPlayerIdx:', myPlayerIdx, 'gs.currentPlayer:', gs.currentPlayer);
-    drawBoard(gs); updateUI();
-    // B14: 远端 move 播放吃子/跳跃动画
-    newPieces.forEach((np, i) => {
-      const op = oldPieces[i];
-      if(!op) return;
-      const opPos = Number(op.pos), npPos = Number(np.pos);
-      // 被吃：从路径回到基地(视觉飞回)
-      if(opPos >= 0 && npPos === -1){
-        const [ox, oy] = pieceToPixel(op);
-        const sc = boardToScreen(ox, oy);
-        alienEatEffect(sc.x, sc.y);
-        showEatPopup();
-        flyPieceHome(op, sc.x, sc.y);
-        sndEat();
-      }
-      // 移动：路径上位置变化
-      if(opPos !== npPos && npPos >= 0 && !np.finished){
-        const [px, py] = pieceToPixel(np);
-        animatePieceJump(px, py);
-      }
+
+    // 找出前进的棋子（含刚 finished 的）——用于逐格动画
+    const movements = newPieces.map((np, i) => ({ np, op: oldPieces[i] })).filter(m => m.op);
+    const mover = movements.find(({np, op}) => {
+      const opP = Number(op.pos), npP = Number(np.pos);
+      if(np.finished && !op.finished) return true;
+      if(np.finished || op.finished) return false;
+      if(opP === -1 && npP === 0) return true;             // 出基地
+      if(opP >= 0 && npP > opP) return true;               // 前进
+      return false;
     });
+    const captures = movements.filter(({np, op}) =>
+      Number(op.pos) >= 0 && Number(np.pos) === -1 && !np.finished && !op.finished
+    );
+
+    if(mover){
+      const pcInGs = gs.pieces.find(p =>
+        Number(p.player) === Number(mover.np.player) &&
+        Number(p.idx) === Number(mover.np.idx)
+      );
+      if(pcInGs){
+        const opPos = Number(mover.op.pos);
+        const targetPos = mover.np.finished
+          ? PATH_LEN[Number(pcInGs.player)] - 1
+          : Number(mover.np.pos);
+        pcInGs.pos = opPos;
+        pcInGs.finished = false; // 动画期间关掉，避免中央 cluster 渲染
+        await animatePieceAlongPath(pcInGs, opPos, targetPos);
+        if(mover.np.finished) pcInGs.finished = true;
+      }
+    } else {
+      drawBoard(gs);
+    }
+
+    // 吃子：被吃棋子飞回基地（发生在移动动画结束后）
+    for(const {op} of captures){
+      const [ox, oy] = pieceToPixel(op);
+      const sc = boardToScreen(ox, oy);
+      alienEatEffect(sc.x, sc.y);
+      showEatPopup();
+      flyPieceHome(op, sc.x, sc.y);
+      sndEat();
+    }
+
+    drawBoard(gs); updateUI();
   }
 }
 
